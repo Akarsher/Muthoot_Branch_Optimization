@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Branch Route Planner</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <h1>Branch Route Planner</h1>
+  <button id="planBtn">Plan Routes</button>
+  <div id="output"></div>
+
+  <script>
+    document.getElementById("planBtn").addEventListener("click", async () => {
+      const res = await fetch("/api/plan", { method: "POST" });
+      const data = await res.json();
+      const out = document.getElementById("output");
+      if (data.error) {
+        out.innerHTML = "<p style='color:red'>" + data.error + "</p>";
+        return;
+      }
+      let html = "";
+      data.days.forEach((d, idx) => {
+        html += `<h3>Day ${idx+1} - ${ (d.distance_m/1000).toFixed(2)} km</h3>`;
+        html += "<ol>";
+        d.stops.forEach(s => html += `<li>${s.name} - ${s.address}</li>`);
+        html += "</ol>";
+        html += `<a href="/map/day/${idx+1}" target="_blank">View Map for Day ${idx+1}</a>`;
+      });
+      out.innerHTML = html;
+    });
+  </script>
+</body>
+</html>

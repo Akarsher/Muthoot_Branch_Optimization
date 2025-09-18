@@ -1,16 +1,16 @@
+from flask import Flask, render_template, jsonify
 import sqlite3
 from models.branch_model import create_tables
 from services.distance_service import get_distance_matrix
-from config import DB_PATH
+from services.map_service import generate_map
+from config import DB_PATH, GOOGLE_MAPS_API_KEY
 
 MAX_DISTANCE_PER_DAY = 180_000  # 180 km in meters
 
+app = Flask(__name__)
+
 
 def get_branches():
-    """
-    Fetch all unvisited branches including HQ.
-    Returns: list of tuples (id, name, address, lat, lng, is_hq)
-    """
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("SELECT id, name, address, lat, lng, is_hq FROM branches WHERE visited=0 OR is_hq=1")
@@ -36,12 +36,8 @@ def reset_branches():
 
 
 def plan_multi_day(branches, distance_matrix, time_matrix):
-    """
-    Greedy daily TSP planner.
-    Each day starts & ends at HQ, and daily distance is capped at MAX_DISTANCE_PER_DAY.
-    """
     days = []
-    hq_index = next(i for i, b in enumerate(branches) if b[5] == 1)  # HQ index
+    hq_index = next(i for i, b in enumerate(branches) if b[5] == 1)
     unvisited = set(i for i, b in enumerate(branches) if b[5] == 0)
 
     while unvisited:
@@ -54,66 +50,70 @@ def plan_multi_day(branches, distance_matrix, time_matrix):
             min_dist = float("inf")
 
             for j in unvisited:
-                d = distance_matrix[last][j] + distance_matrix[j][hq_index]  # trip including return
+                d = distance_matrix[last][j] + distance_matrix[j][hq_index]
                 if total_distance + d <= MAX_DISTANCE_PER_DAY and distance_matrix[last][j] < min_dist:
                     min_dist = distance_matrix[last][j]
                     next_branch = j
 
             if next_branch is None:
-                break  # can't add more without exceeding limit
+                break
 
             day_route.append(next_branch)
             total_distance += min_dist
             unvisited.remove(next_branch)
 
-        day_route.append(hq_index)  # return to HQ
+        day_route.append(hq_index)
         days.append(day_route)
 
-        # mark visited branches
         for idx in day_route:
-            if branches[idx][5] == 0:  # skip HQ
+            if branches[idx][5] == 0:
                 mark_branch_visited(branches[idx][0])
 
     return days
 
 
-if __name__ == "__main__":
-    # Step 1: Ensure DB tables exist
-    create_tables()
+# ------------------ Flask Routes ------------------
 
-    # Step 2: Load branches
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/api/plan", methods=["POST"])
+def api_plan():
+    create_tables()
     branches = get_branches()
     if not branches:
-        print("No unvisited branches found in database.")
-        exit(0)
+        return jsonify({"error": "No unvisited branches found in database."})
 
-    # Step 3: Extract coordinates
-    coords = [(b[3], b[4]) for b in branches]  # (lat, lng)
-
-    # Step 4: Get distance & time matrices
+    coords = [(b[3], b[4]) for b in branches]
     distance_matrix, time_matrix = get_distance_matrix(coords)
-
-    # Step 5: Plan multi-day routes
     days = plan_multi_day(branches, distance_matrix, time_matrix)
 
-    # Step 6: Print results (NO full distance matrix dump)
-    for d, route in enumerate(days, 1):
-        print(f"\nDay {d} Route:")
-        total_dist = 0
-        total_time = 0
+    # Generate map for each day
+    generate_map(branches, days, GOOGLE_MAPS_API_KEY)
 
+    # Build JSON response
+    result = []
+    for d, route in enumerate(days, 1):
+        total_dist = 0
+        stops = []
         for k in range(len(route) - 1):
             i, j = route[k], route[k + 1]
-            b = branches[i]
-            print(f"  {b[1]} ({b[2]}) -> ", end="")
             total_dist += distance_matrix[i][j]
-            total_time += time_matrix[i][j]
+            stops.append({"name": branches[i][1], "address": branches[i][2]})
+        stops.append({"name": branches[route[-1]][1], "address": branches[route[-1]][2]})
+        result.append({"day": d, "distance_m": total_dist, "stops": stops})
 
-        last = branches[route[-1]]
-        print(f"{last[1]} ({last[2]})")
-
-        print(f"  Total Distance: {total_dist/1000:.2f} km")
-        print(f"  Total Time (with traffic): {total_time//60} min")
-
-    # Step 7: Reset after all routes
     reset_branches()
+    return jsonify({"days": result})
+
+
+@app.route("/map/day/<int:day_id>")
+def show_map(day_id):
+    # Just serve the generated map.html (same for all days now)
+    return render_template("map.html")
+
+
+if __name__ == "__main__":
+    app.run(debug=True)

@@ -1,0 +1,5 @@
+body { font-family: Arial, sans-serif; padding: 20px; }
+h1 { color: #2a6f97; }
+#map { height: 80vh; }
+button { padding: 10px 15px; background-color: #2a6f97; color: white; border: none; cursor: pointer; }
+button:hover { background-color: #1b4f6f; }
