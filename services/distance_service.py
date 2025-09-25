@@ -6,66 +6,113 @@ from datetime import datetime, timezone, timedelta
 
 def get_distance_matrix(coords):
     """
-    Build a distance matrix using Google Routes API with traffic-aware travel times.
+    Build a distance matrix using Google Distance Matrix API (fallback for Routes API)
     Returns:
         distance_matrix (list[list[int]]) - distances in meters
         time_matrix (list[list[int]]) - travel times in seconds
     """
-    url = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
-
-    origins = [{"waypoint": {"location": {"latLng": {"latitude": lat, "longitude": lng}}}} for lat, lng in coords]
-    destinations = [{"waypoint": {"location": {"latLng": {"latitude": lat, "longitude": lng}}}} for lat, lng in coords]
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
-        "X-Goog-FieldMask": "originIndex,destinationIndex,distanceMeters,duration"
-    }
-
-    # Must be a future time in UTC
-    departure_time = (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
-
-    body = {
-        "origins": origins,
-        "destinations": destinations,
-        "travelMode": "DRIVE",
-        "routingPreference": "TRAFFIC_AWARE",
-        "departureTime": departure_time
-    }
-
-    print("Fetching distance & traffic-aware travel times from Google Routes API...")
-
-    response = requests.post(url, headers=headers, data=json.dumps(body))
-
-    if response.status_code != 200:
-        raise Exception(f"Google Routes API Error: {response.text}")
-
-    results = response.json()
-
+    print("Using Google Distance Matrix API (standard API key compatible)...")
+    
     n = len(coords)
     distance_matrix = [[0] * n for _ in range(n)]
     time_matrix = [[0] * n for _ in range(n)]
-
-    for row in results:
-        i = row["originIndex"]
-        j = row["destinationIndex"]
-
-        distance = row.get("distanceMeters", 0)
-        duration = row.get("duration", "0s")
-
-        # Convert "123s" → 123 (int seconds)
-        seconds = int(duration[:-1]) if duration.endswith("s") else 0
-
-        distance_matrix[i][j] = distance
-        time_matrix[i][j] = seconds
-
-        # Debug log
-        print(f"Route {i}->{j}: {distance/1000:.2f} km, {seconds//60} min")
+    
+    # Process in chunks if needed (API limit)
+    max_elements = 100  # Distance Matrix API allows up to 100 elements per request
+    chunk_size = int(max_elements ** 0.5)  # Square root for matrix
+    
+    for i_start in range(0, n, chunk_size):
+        i_end = min(i_start + chunk_size, n)
+        for j_start in range(0, n, chunk_size):
+            j_end = min(j_start + chunk_size, n)
+            
+            # Create origins and destinations for this chunk
+            origins = coords[i_start:i_end]
+            destinations = coords[j_start:j_end]
+            
+            # Build request URL
+            origin_str = "|".join([f"{lat},{lng}" for lat, lng in origins])
+            dest_str = "|".join([f"{lat},{lng}" for lat, lng in destinations])
+            
+            url = f"https://maps.googleapis.com/maps/api/distancematrix/json"
+            params = {
+                "origins": origin_str,
+                "destinations": dest_str,
+                "mode": "driving",
+                "units": "metric",
+                "departure_time": "now",
+                "traffic_model": "best_guess",
+                "key": GOOGLE_MAPS_API_KEY
+            }
+            
+            try:
+                response = requests.get(url, params=params, timeout=30)
+                
+                if response.status_code != 200:
+                    print(f"⚠️ API Error: {response.status_code}")
+                    # Fill with default values
+                    for i in range(len(origins)):
+                        for j in range(len(destinations)):
+                            if i_start + i == j_start + j:
+                                distance_matrix[i_start + i][j_start + j] = 0
+                                time_matrix[i_start + i][j_start + j] = 0
+                            else:
+                                distance_matrix[i_start + i][j_start + j] = 50000  # 50km default
+                                time_matrix[i_start + i][j_start + j] = 3600      # 1 hour default
+                    continue
+                
+                data = response.json()
+                
+                if data.get("status") != "OK":
+                    print(f"⚠️ API Status: {data.get('status')}")
+                    continue
+                
+                # Process results
+                for i, row in enumerate(data["rows"]):
+                    for j, element in enumerate(row["elements"]):
+                        matrix_i = i_start + i
+                        matrix_j = j_start + j
+                        
+                        if element["status"] == "OK":
+                            distance = element["distance"]["value"]  # meters
+                            duration = element["duration"]["value"]  # seconds
+                            
+                            # Use traffic duration if available
+                            if "duration_in_traffic" in element:
+                                duration = element["duration_in_traffic"]["value"]
+                            
+                            distance_matrix[matrix_i][matrix_j] = distance
+                            time_matrix[matrix_i][matrix_j] = duration
+                            
+                            print(f"Route {matrix_i}->{matrix_j}: {distance/1000:.2f} km, {duration//60} min")
+                        else:
+                            # Default values for failed routes
+                            if matrix_i == matrix_j:
+                                distance_matrix[matrix_i][matrix_j] = 0
+                                time_matrix[matrix_i][matrix_j] = 0
+                            else:
+                                distance_matrix[matrix_i][matrix_j] = 50000  # 50km default
+                                time_matrix[matrix_i][matrix_j] = 3600      # 1 hour default
+                                print(f"⚠️ Route {matrix_i}->{matrix_j} failed: {element['status']}")
+                
+            except requests.exceptions.RequestException as e:
+                print(f"⚠️ Request failed: {e}")
+                # Fill with default values
+                for i in range(len(origins)):
+                    for j in range(len(destinations)):
+                        if i_start + i == j_start + j:
+                            distance_matrix[i_start + i][j_start + j] = 0
+                            time_matrix[i_start + i][j_start + j] = 0
+                        else:
+                            distance_matrix[i_start + i][j_start + j] = 50000  # 50km default
+                            time_matrix[i_start + i][j_start + j] = 3600      # 1 hour default
 
     return distance_matrix, time_matrix
 
+
 def get_route_details(origin_coords, dest_coords):
     """
+    Get route details using Google Directions API (compatible with standard API keys)
     origin_coords, dest_coords: (lat, lng) tuples
     Returns: dict with keys:
       - distance_meters (int)
@@ -73,58 +120,58 @@ def get_route_details(origin_coords, dest_coords):
       - encoded_polyline (str)  # may be empty if none
       - legs (list)             # raw legs if needed
     """
-    url = "https://routes.googleapis.com/directions/v2:computeRoutes"
-
-    # departure time slightly in future to allow "traffic-aware"
-    departure_time = (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
-
-    payload = {
-        "origin": {"location": {"latLng": {"latitude": origin_coords[0], "longitude": origin_coords[1]}}},
-        "destination": {"location": {"latLng": {"latitude": dest_coords[0], "longitude": dest_coords[1]}}},
-        "travelMode": "DRIVE",
-        "routingPreference": "TRAFFIC_AWARE",
-        "departureTime": departure_time
+    url = "https://maps.googleapis.com/maps/api/directions/json"
+    
+    params = {
+        "origin": f"{origin_coords[0]},{origin_coords[1]}",
+        "destination": f"{dest_coords[0]},{dest_coords[1]}",
+        "mode": "driving",
+        "departure_time": "now",
+        "traffic_model": "best_guess",
+        "key": GOOGLE_MAPS_API_KEY
     }
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
-        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs"
-    }
-
-    resp = requests.post(url, json=payload, headers=headers, timeout=15)
-    if resp.status_code != 200:
-        # return None or raise depending on your preference
-        # Return a small dict with penalties so map rendering can continue
+    
+    try:
+        response = requests.get(url, params=params, timeout=15)
+        
+        if response.status_code != 200:
+            print(f"⚠️ Directions API Error: {response.status_code}")
+            return {"distance_meters": None, "duration_seconds": None, "encoded_polyline": None, "legs": []}
+        
+        data = response.json()
+        
+        if data.get("status") != "OK" or not data.get("routes"):
+            print(f"⚠️ Directions API Status: {data.get('status')}")
+            return {"distance_meters": None, "duration_seconds": None, "encoded_polyline": None, "legs": []}
+        
+        route = data["routes"][0]
+        
+        # Extract distance and duration
+        distance = None
+        duration = None
+        
+        if "legs" in route and route["legs"]:
+            leg = route["legs"][0]
+            distance = leg.get("distance", {}).get("value")  # meters
+            
+            # Use traffic duration if available, otherwise regular duration
+            if "duration_in_traffic" in leg:
+                duration = leg["duration_in_traffic"]["value"]  # seconds
+            elif "duration" in leg:
+                duration = leg["duration"]["value"]  # seconds
+        
+        # Extract polyline
+        polyline = None
+        if "overview_polyline" in route:
+            polyline = route["overview_polyline"].get("points")
+        
+        return {
+            "distance_meters": distance,
+            "duration_seconds": duration,
+            "encoded_polyline": polyline,
+            "legs": route.get("legs", [])
+        }
+        
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Directions API request failed: {e}")
         return {"distance_meters": None, "duration_seconds": None, "encoded_polyline": None, "legs": []}
-
-    data = resp.json()
-    if "routes" not in data or len(data["routes"]) == 0:
-        return {"distance_meters": None, "duration_seconds": None, "encoded_polyline": None, "legs": []}
-
-    route = data["routes"][0]
-    distance = route.get("distanceMeters", None)
-    duration = None
-    # duration may be available as seconds or formatted; check fields
-    if "duration" in route:
-        # route["duration"] might be e.g., "1234s" or number — handle both
-        dval = route["duration"]
-        if isinstance(dval, str) and dval.endswith("s"):
-            try:
-                duration = int(dval[:-1])
-            except:
-                duration = None
-        elif isinstance(dval, (int, float)):
-            duration = int(dval)
-    elif "legs" in route and len(route["legs"])>0 and "duration" in route["legs"][0]:
-        # fallback: sum legs
-        duration = sum(int(leg.get("duration", 0)) for leg in route["legs"])
-
-    poly = route.get("polyline", {}).get("encodedPolyline") or route.get("polyline", {}).get("points") or None
-
-    return {
-        "distance_meters": distance,
-        "duration_seconds": duration,
-        "encoded_polyline": poly,
-        "legs": route.get("legs", [])
-    }

@@ -4,31 +4,177 @@
   <meta charset="utf-8">
   <title>Branch Route Planner</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .status-box {
+      background: #f0f8ff;
+      border: 1px solid #add8e6;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .button-group {
+      margin: 10px 0;
+    }
+    .button-group button {
+      margin-right: 10px;
+      padding: 10px 20px;
+      font-size: 14px;
+    }
+    .success { color: #28a745; }
+    .error { color: #dc3545; }
+    .info { color: #17a2b8; }
+  </style>
 </head>
 <body>
   <h1>Branch Route Planner</h1>
-  <button id="planBtn">Plan Routes</button>
+  
+  <div class="status-box" id="status">
+    <p>Loading status...</p>
+  </div>
+
+  <div class="button-group">
+    <button id="planSingleBtn">Plan Next Day</button>
+    <button id="planMultiBtn">Plan All Days</button>
+    <button id="resetBtn">Reset All Branches</button>
+    <button id="statusBtn">Refresh Status</button>
+  </div>
+
   <div id="output"></div>
 
   <script>
-    document.getElementById("planBtn").addEventListener("click", async () => {
-      const res = await fetch("/api/plan", { method: "POST" });
-      const data = await res.json();
-      const out = document.getElementById("output");
-      if (data.error) {
-        out.innerHTML = "<p style='color:red'>" + data.error + "</p>";
-        return;
+    async function updateStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        const statusDiv = document.getElementById("status");
+        
+        if (data.success) {
+          statusDiv.innerHTML = `
+            <h3>Branch Status</h3>
+            <p>Total Branches: ${data.total_branches}</p>
+            <p>Visited: ${data.visited_branches}</p>
+            <p>Remaining: ${data.unvisited_branches}</p>
+            ${data.all_completed ? '<p class="success">✅ All branches completed!</p>' : '<p class="info">📍 More branches to visit</p>'}
+          `;
+        } else {
+          statusDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
+        }
+      } catch (error) {
+        document.getElementById("status").innerHTML = `<p class="error">Status check failed: ${error.message}</p>`;
       }
-      let html = "";
-      data.days.forEach((d, idx) => {
-        html += `<h3>Day ${idx+1} - ${ (d.distance_m/1000).toFixed(2)} km</h3>`;
-        html += "<ol>";
-        d.stops.forEach(s => html += `<li>${s.name} - ${s.address}</li>`);
-        html += "</ol>";
-        html += `<a href="/map/day/${idx+1}" target="_blank">View Map for Day ${idx+1}</a>`;
-      });
-      out.innerHTML = html;
+    }
+
+    document.getElementById("planSingleBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("planSingleBtn");
+      btn.disabled = true;
+      btn.textContent = "Planning...";
+      
+      try {
+        const res = await fetch("/api/plan", { method: "POST" });
+        const data = await res.json();
+        const out = document.getElementById("output");
+        
+        if (data.error) {
+          if (data.all_completed) {
+            out.innerHTML = "<p class='success'>🎉 All branches have been visited!</p>";
+          } else {
+            out.innerHTML = "<p class='error'>" + data.error + "</p>";
+          }
+          return;
+        }
+
+        if (data.success && data.day_route) {
+          const route = data.day_route;
+          let html = `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
+          html += `<h3>Day Route - ${route.distance_km} km</h3>`;
+          html += `<p><strong>Branches visited:</strong> ${route.branches_visited}</p>`;
+          html += `<p><strong>Remaining branches:</strong> ${route.remaining_branches}</p>`;
+          html += "<ol>";
+          route.stops.forEach(s => html += `<li>${s.name} - ${s.address}</li>`);
+          html += "</ol>";
+          html += `<a href="/map/day/1" target="_blank">View Map</a>`;
+          
+          if (data.has_more_branches) {
+            html += `<p class="info">💡 Click "Plan Next Day" again to plan the next route!</p>`;
+          } else {
+            html += `<p class="success">🎉 All branches planned!</p>`;
+          }
+          html += `</div>`;
+          out.innerHTML = html;
+        }
+      } catch (error) {
+        document.getElementById("output").innerHTML = `<p class='error'>Planning failed: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Plan Next Day";
+        updateStatus();
+      }
     });
+
+    document.getElementById("planMultiBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("planMultiBtn");
+      btn.disabled = true;
+      btn.textContent = "Planning All Days...";
+      
+      try {
+        const res = await fetch("/api/plan-multi", { method: "POST" });
+        const data = await res.json();
+        const out = document.getElementById("output");
+        
+        if (data.error) {
+          out.innerHTML = "<p class='error'>" + data.error + "</p>";
+          return;
+        }
+        
+        let html = "";
+        data.days.forEach((d, idx) => {
+          html += `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
+          html += `<h3>Day ${idx+1} - ${d.distance_km} km</h3>`;
+          html += `<p><strong>Branches:</strong> ${d.branches_visited}</p>`;
+          html += "<ol>";
+          d.stops.forEach(s => html += `<li>${s.name} - ${s.address}</li>`);
+          html += "</ol>";
+          html += `<a href="/map/day/${idx+1}" target="_blank">View Map for Day ${idx+1}</a>`;
+          html += `</div>`;
+        });
+        out.innerHTML = html;
+      } catch (error) {
+        document.getElementById("output").innerHTML = `<p class='error'>Planning failed: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Plan All Days";
+        updateStatus();
+      }
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("resetBtn");
+      btn.disabled = true;
+      btn.textContent = "Resetting...";
+      
+      try {
+        const res = await fetch("/api/reset", { method: "POST" });
+        const data = await res.json();
+        const out = document.getElementById("output");
+        
+        if (data.success) {
+          out.innerHTML = "<p class='success'>✅ All branches reset to unvisited</p>";
+        } else {
+          out.innerHTML = "<p class='error'>" + data.error + "</p>";
+        }
+      } catch (error) {
+        document.getElementById("output").innerHTML = `<p class='error'>Reset failed: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Reset All Branches";
+        updateStatus();
+      }
+    });
+
+    document.getElementById("statusBtn").addEventListener("click", updateStatus);
+
+    // Load status on page load
+    updateStatus();
   </script>
 </body>
 </html>
