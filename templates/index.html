@@ -317,10 +317,6 @@
         } else {
           statusDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
         }
-        
-        // Try to restore last route data
-        await restoreLastRoute();
-        
       } catch (error) {
         document.getElementById("status").innerHTML = `<p class="error">Status check failed: ${error.message}</p>`;
       }
@@ -510,7 +506,10 @@
       }
     });
 
-    document.getElementById("statusBtn").addEventListener("click", updateStatus);
+    document.getElementById("statusBtn").addEventListener("click", async () => {
+      await updateStatus();
+      await restoreLastRoute();
+    });
 
     // Load status on page load
     updateStatus();
