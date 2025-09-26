@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import sqlite3
 from models.branch_model import create_tables
 from services.distance_service import get_distance_matrix
@@ -144,9 +144,9 @@ def plan_single_day(branches, distance_matrix, time_matrix, use_tsp_optimization
             except Exception as e:
                 print(f"⚠️ TSP optimization failed: {e}")
         
-        # Mark visited branches in database
-        for branch_idx in day_branches_visited:
-            mark_branch_visited(branches[branch_idx][0])
+        # Don't automatically mark branches as visited - let user confirm them
+        # for branch_idx in day_branches_visited:
+        #     mark_branch_visited(branches[branch_idx][0])
         
         return day_route
     else:
@@ -260,9 +260,9 @@ def plan_multi_day(branches, distance_matrix, time_matrix, use_tsp_optimization=
             
             days.append(day_route)
             
-            # Mark visited branches in database
-            for branch_idx in day_branches_visited:
-                mark_branch_visited(branches[branch_idx][0])
+            # Don't automatically mark branches as visited - let user confirm them
+            # for branch_idx in day_branches_visited:
+            #     mark_branch_visited(branches[branch_idx][0])
         
         else:
             print(f"  ⚠️ No branches could be visited on Day {day_count}")
@@ -427,6 +427,18 @@ def api_plan_single_day():
         branch_count_this_day = len([i for i in day_route if branches[i][5] == 0])
         remaining_branches = sum(1 for b in branches if b[5] == 0 and (len(b) <= 6 or b[6] == 0))
         
+        # Get branches that will be visited (excluding HQ)
+        visited_branches = []
+        for i in day_route:
+            if branches[i][5] == 0:  # Not HQ
+                visited_branches.append({
+                    "id": branches[i][0],
+                    "name": branches[i][1],
+                    "address": branches[i][2],
+                    "lat": branches[i][3],
+                    "lng": branches[i][4]
+                })
+        
         result = {
             "day": 1, 
             "distance_m": total_dist,
@@ -434,7 +446,8 @@ def api_plan_single_day():
             "branches_visited": branch_count_this_day,
             "remaining_branches": remaining_branches,
             "stops": stops,
-            "route_indices": day_route
+            "route_indices": day_route,
+            "visited_branches": visited_branches
         }
         
         print(f"✅ Single day planning completed: {branch_count_this_day} branches, {len(stops)} stops, {total_dist/1000:.1f}km")
@@ -543,13 +556,26 @@ def api_plan_multi_day():
             
             branch_count_this_day = len([i for i in route if branches[i][5] == 0])
             
+            # Get branches that will be visited (excluding HQ)
+            visited_branches = []
+            for i in route:
+                if branches[i][5] == 0:  # Not HQ
+                    visited_branches.append({
+                        "id": branches[i][0],
+                        "name": branches[i][1],
+                        "address": branches[i][2],
+                        "lat": branches[i][3],
+                        "lng": branches[i][4]
+                    })
+            
             day_result = {
                 "day": d, 
                 "distance_m": total_dist,
                 "distance_km": round(total_dist/1000, 2),
                 "branches_visited": branch_count_this_day,
                 "stops": stops,
-                "route_indices": route
+                "route_indices": route,
+                "visited_branches": visited_branches
             }
             
             result.append(day_result)
@@ -563,6 +589,31 @@ def api_plan_multi_day():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Planning failed: {str(e)}", "success": False})
+
+
+@app.route("/api/confirm-visits", methods=["POST"])
+def api_confirm_visits():
+    """Mark selected branches as visited"""
+    try:
+        data = request.get_json()
+        branch_ids = data.get('branch_ids', [])
+        
+        if not branch_ids:
+            return jsonify({"error": "No branch IDs provided", "success": False})
+        
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        for branch_id in branch_ids:
+            cursor.execute("UPDATE branches SET visited = 1 WHERE id = ?", (branch_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "message": f"Marked {len(branch_ids)} branches as visited"})
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to confirm visits: {str(e)}", "success": False})
 
 
 @app.route("/api/reset", methods=["POST"])

@@ -20,6 +20,48 @@
       padding: 10px 20px;
       font-size: 14px;
     }
+    .branch-confirmation {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .branches-horizontal {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .branch-checkbox {
+      display: flex;
+      align-items: center;
+      background: #e8f5e8;
+      border: 1px solid #28a745;
+      padding: 8px 12px;
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+    .branch-checkbox input {
+      margin-right: 8px;
+    }
+    .confirm-button {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    .confirm-button:hover {
+      background: #218838;
+    }
+    .confirm-button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
     .success { color: #28a745; }
     .error { color: #dc3545; }
     .info { color: #17a2b8; }
@@ -42,6 +84,76 @@
   <div id="output"></div>
 
   <script>
+    async function confirmVisits(branchIds, dayNumber) {
+      try {
+        const response = await fetch("/api/confirm-visits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ branch_ids: branchIds })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Remove the confirmation section and show success message
+          const confirmDiv = document.getElementById(`confirm-day-${dayNumber}`);
+          if (confirmDiv) {
+            confirmDiv.innerHTML = `<p class="success">✅ ${branchIds.length} branches marked as visited!</p>`;
+          }
+          updateStatus();
+          return true;
+        } else {
+          alert("Error confirming visits: " + data.error);
+          return false;
+        }
+      } catch (error) {
+        alert("Failed to confirm visits: " + error.message);
+        return false;
+      }
+    }
+
+    function createBranchConfirmation(visitedBranches, dayNumber) {
+      if (!visitedBranches || visitedBranches.length === 0) {
+        return "";
+      }
+      
+      let html = `<div id="confirm-day-${dayNumber}" class="branch-confirmation">`;
+      html += `<h4>🏢 Branches to visit on Day ${dayNumber}:</h4>`;
+      html += `<div class="branches-horizontal">`;
+      
+      visitedBranches.forEach(branch => {
+        html += `<div class="branch-checkbox">
+          <input type="checkbox" id="branch-${branch.id}" value="${branch.id}" checked>
+          <label for="branch-${branch.id}">${branch.name}</label>
+        </div>`;
+      });
+      
+      html += `</div>`;
+      html += `<button class="confirm-button" onclick="handleConfirmDay(${dayNumber})">
+        ✅ Confirm Visit to Selected Branches
+      </button>`;
+      html += `</div>`;
+      
+      return html;
+    }
+
+    async function handleConfirmDay(dayNumber) {
+      const checkboxes = document.querySelectorAll(`#confirm-day-${dayNumber} input[type="checkbox"]:checked`);
+      const branchIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      
+      if (branchIds.length === 0) {
+        alert("Please select at least one branch to confirm.");
+        return;
+      }
+      
+      const success = await confirmVisits(branchIds, dayNumber);
+      if (success) {
+        console.log(`Confirmed visits for day ${dayNumber}:`, branchIds);
+      }
+    }
+
     async function updateStatus() {
       try {
         const res = await fetch("/api/status");
@@ -93,13 +205,16 @@
           route.stops.forEach(s => html += `<li>${s.name} - ${s.address}</li>`);
           html += "</ol>";
           html += `<a href="/map/day/1" target="_blank">View Map</a>`;
+          html += `</div>`;
+          
+          // Add branch confirmation section
+          html += createBranchConfirmation(route.visited_branches, 1);
           
           if (data.has_more_branches) {
             html += `<p class="info">💡 Click "Plan Next Day" again to plan the next route!</p>`;
           } else {
             html += `<p class="success">🎉 All branches planned!</p>`;
           }
-          html += `</div>`;
           out.innerHTML = html;
         }
       } catch (error) {
@@ -136,6 +251,9 @@
           html += "</ol>";
           html += `<a href="/map/day/${idx+1}" target="_blank">View Map for Day ${idx+1}</a>`;
           html += `</div>`;
+          
+          // Add branch confirmation section for each day
+          html += createBranchConfirmation(d.visited_branches, idx + 1);
         });
         out.innerHTML = html;
       } catch (error) {
