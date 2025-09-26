@@ -54,6 +54,7 @@
       cursor: pointer;
       font-size: 14px;
       margin-top: 10px;
+      margin-right: 10px;
     }
     .confirm-button:hover {
       background: #218838;
@@ -61,6 +62,55 @@
     .confirm-button:disabled {
       background: #6c757d;
       cursor: not-allowed;
+    }
+    .save-button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+      margin-right: 10px;
+    }
+    .save-button:hover {
+      background: #0056b3;
+    }
+    .submit-button {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+      margin-right: 10px;
+    }
+    .submit-button:hover {
+      background: #c82333;
+    }
+    .status-message {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    .success { 
+      color: #28a745; 
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+    }
+    .error { 
+      color: #dc3545;
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+    }
+    .info { 
+      color: #17a2b8;
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
     }
     .success { color: #28a745; }
     .error { color: #dc3545; }
@@ -84,9 +134,9 @@
   <div id="output"></div>
 
   <script>
-    async function confirmVisits(branchIds, dayNumber) {
+    async function saveVisits(branchIds, dayNumber) {
       try {
-        const response = await fetch("/api/confirm-visits", {
+        const response = await fetch("/api/save-visits", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -97,21 +147,102 @@
         const data = await response.json();
         
         if (data.success) {
-          // Remove the confirmation section and show success message
+          showStatusMessage(`confirm-day-${dayNumber}`, data.message, 'success');
+          updateStatus();
+          // Update the checkbox states to reflect saved visits
+          await refreshBranchStates(dayNumber);
+          return true;
+        } else {
+          showStatusMessage(`confirm-day-${dayNumber}`, "Error saving visits: " + data.error, 'error');
+          return false;
+        }
+      } catch (error) {
+        showStatusMessage(`confirm-day-${dayNumber}`, "Failed to save visits: " + error.message, 'error');
+        return false;
+      }
+    }
+
+    async function submitVisits(branchIds, dayBranchIds, dayNumber) {
+      try {
+        const response = await fetch("/api/submit-visits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            branch_ids: branchIds
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Always close the confirmation section when submit is pressed
           const confirmDiv = document.getElementById(`confirm-day-${dayNumber}`);
           if (confirmDiv) {
-            confirmDiv.innerHTML = `<p class="success">✅ ${branchIds.length} branches marked as visited!</p>`;
+            confirmDiv.innerHTML = `<div class="status-message success">✅ Day ${dayNumber} submitted and closed!</div>`;
           }
           updateStatus();
           return true;
         } else {
-          alert("Error confirming visits: " + data.error);
+          showStatusMessage(`confirm-day-${dayNumber}`, "Error submitting visits: " + data.error, 'error');
           return false;
         }
       } catch (error) {
-        alert("Failed to confirm visits: " + error.message);
+        showStatusMessage(`confirm-day-${dayNumber}`, "Failed to submit visits: " + error.message, 'error');
         return false;
       }
+    }
+
+    function showStatusMessage(containerId, message, type) {
+      const container = document.getElementById(containerId);
+      if (container) {
+        let statusDiv = container.querySelector('.status-message');
+        if (!statusDiv) {
+          statusDiv = document.createElement('div');
+          statusDiv.className = 'status-message';
+          container.appendChild(statusDiv);
+        }
+        statusDiv.className = `status-message ${type}`;
+        statusDiv.textContent = message;
+        
+        // Auto-hide success messages after 3 seconds
+        if (type === 'success') {
+          setTimeout(() => {
+            if (statusDiv && statusDiv.parentNode) {
+              statusDiv.remove();
+            }
+          }, 3000);
+        }
+      }
+    }
+
+    async function refreshBranchStates(dayNumber) {
+      // Get current branch states from the server and update checkboxes
+      try {
+        const branches = await getCurrentBranchStates();
+        const checkboxes = document.querySelectorAll(`#confirm-day-${dayNumber} input[type="checkbox"]`);
+        
+        checkboxes.forEach(checkbox => {
+          const branchId = parseInt(checkbox.value);
+          const branch = branches.find(b => b.id === branchId);
+          if (branch && branch.visited === 1) {
+            checkbox.checked = false; // Uncheck visited branches
+            checkbox.parentElement.style.opacity = '0.6'; // Dim visited branches
+          }
+        });
+      } catch (error) {
+        console.error('Failed to refresh branch states:', error);
+      }
+    }
+
+    async function getCurrentBranchStates() {
+      const response = await fetch('/api/branches');
+      if (!response.ok) {
+        throw new Error('Failed to fetch branch states');
+      }
+      const data = await response.json();
+      return data.branches || [];
     }
 
     function createBranchConfirmation(visitedBranches, dayNumber) {
@@ -125,32 +256,47 @@
       
       visitedBranches.forEach(branch => {
         html += `<div class="branch-checkbox">
-          <input type="checkbox" id="branch-${branch.id}" value="${branch.id}" checked>
+          <input type="checkbox" id="branch-${branch.id}" value="${branch.id}">
           <label for="branch-${branch.id}">${branch.name}</label>
         </div>`;
       });
       
       html += `</div>`;
-      html += `<button class="confirm-button" onclick="handleConfirmDay(${dayNumber})">
-        ✅ Confirm Visit to Selected Branches
+      html += `<div>`;
+      html += `<button class="save-button" onclick="handleSaveDay(${dayNumber})">
+        💾 Save Selected Visits
       </button>`;
+      html += `<button class="submit-button" onclick="handleSubmitDay(${dayNumber})">
+        🚀 Submit & Close
+      </button>`;
+      html += `</div>`;
       html += `</div>`;
       
       return html;
     }
 
-    async function handleConfirmDay(dayNumber) {
+    async function handleSaveDay(dayNumber) {
       const checkboxes = document.querySelectorAll(`#confirm-day-${dayNumber} input[type="checkbox"]:checked`);
       const branchIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
       
       if (branchIds.length === 0) {
-        alert("Please select at least one branch to confirm.");
+        showStatusMessage(`confirm-day-${dayNumber}`, "Please select at least one branch to save.", 'info');
         return;
       }
       
-      const success = await confirmVisits(branchIds, dayNumber);
+      const success = await saveVisits(branchIds, dayNumber);
       if (success) {
-        console.log(`Confirmed visits for day ${dayNumber}:`, branchIds);
+        console.log(`Saved visits for day ${dayNumber}:`, branchIds);
+      }
+    }
+
+    async function handleSubmitDay(dayNumber) {
+      const checkboxes = document.querySelectorAll(`#confirm-day-${dayNumber} input[type="checkbox"]:checked`);
+      const branchIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      
+      const success = await submitVisits(branchIds, [], dayNumber);
+      if (success) {
+        console.log(`Submitted and closed day ${dayNumber}:`, branchIds);
       }
     }
 

@@ -591,9 +591,9 @@ def api_plan_multi_day():
         return jsonify({"error": f"Planning failed: {str(e)}", "success": False})
 
 
-@app.route("/api/confirm-visits", methods=["POST"])
-def api_confirm_visits():
-    """Mark selected branches as visited"""
+@app.route("/api/save-visits", methods=["POST"])
+def api_save_visits():
+    """Save selected branches as visited (but keep selection window open)"""
     try:
         data = request.get_json()
         branch_ids = data.get('branch_ids', [])
@@ -610,10 +610,61 @@ def api_confirm_visits():
         conn.commit()
         conn.close()
         
-        return jsonify({"success": True, "message": f"Marked {len(branch_ids)} branches as visited"})
+        return jsonify({"success": True, "message": f"Saved {len(branch_ids)} branches as visited", "action": "save"})
         
     except Exception as e:
-        return jsonify({"error": f"Failed to confirm visits: {str(e)}", "success": False})
+        return jsonify({"error": f"Failed to save visits: {str(e)}", "success": False})
+
+
+@app.route("/api/submit-visits", methods=["POST"])
+def api_submit_visits():
+    """Submit and close the selection window"""
+    try:
+        data = request.get_json()
+        branch_ids = data.get('branch_ids', [])
+        
+        # Save any selected branches first
+        if branch_ids:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            
+            for branch_id in branch_ids:
+                cursor.execute("UPDATE branches SET visited = 1 WHERE id = ?", (branch_id,))
+            
+            conn.commit()
+            conn.close()
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Submitted {len(branch_ids)} branches and closed the window",
+            "action": "submit"
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to submit visits: {str(e)}", "success": False})
+
+
+@app.route("/api/branches", methods=["GET"])
+def api_get_branches():
+    """Get current branch states"""
+    try:
+        branches = get_branches()
+        branch_list = []
+        for branch in branches:
+            branch_list.append({
+                "id": branch[0],
+                "name": branch[1],
+                "address": branch[2],
+                "lat": branch[3],
+                "lng": branch[4],
+                "is_hq": branch[5],
+                "visited": branch[6] if len(branch) > 6 else 0
+            })
+        
+        return jsonify({"success": True, "branches": branch_list})
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to get branches: {str(e)}", "success": False})
 
 
 @app.route("/api/reset", methods=["POST"])
