@@ -11,6 +11,20 @@ MAX_DISTANCE_PER_DAY = 180_000  # 180 km in meters
 app = Flask(__name__)
 
 
+# Global variable to store last route data
+last_route_data = None
+
+def store_last_route(route_data):
+    """Store the last route data globally"""
+    global last_route_data
+    last_route_data = route_data
+
+def get_last_route():
+    """Get the last stored route data"""
+    global last_route_data
+    return last_route_data
+
+
 def get_branches():
     """Get all branches from database"""
     conn = sqlite3.connect(DB_PATH)
@@ -450,6 +464,14 @@ def api_plan_single_day():
             "visited_branches": visited_branches
         }
         
+        # Store the route data for future retrieval
+        route_data = {
+            "type": "single_day",
+            "day_route": result,
+            "has_more_branches": remaining_branches > 0
+        }
+        store_last_route(route_data)
+        
         print(f"✅ Single day planning completed: {branch_count_this_day} branches, {len(stops)} stops, {total_dist/1000:.1f}km")
         print(f"📊 Remaining branches: {remaining_branches}")
         
@@ -582,6 +604,14 @@ def api_plan_multi_day():
             print(f"  Day {d}: {branch_count_this_day} branches, {len(stops)} stops, {total_dist/1000:.1f}km")
 
         print(f"\n🎉 Planning completed successfully: {len(result)} days")
+        
+        # Store the route data for future retrieval
+        route_data = {
+            "type": "multi_day",
+            "days": result
+        }
+        store_last_route(route_data)
+        
         return jsonify({"days": result, "success": True})
         
     except Exception as e:
@@ -642,6 +672,20 @@ def api_submit_visits():
         
     except Exception as e:
         return jsonify({"error": f"Failed to submit visits: {str(e)}", "success": False})
+
+
+@app.route("/api/last-route", methods=["GET"])
+def api_get_last_route():
+    """Get the last planned route data"""
+    try:
+        last_route = get_last_route()
+        if last_route:
+            return jsonify({"success": True, "route_data": last_route})
+        else:
+            return jsonify({"success": False, "message": "No previous route found"})
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to get last route: {str(e)}", "success": False})
 
 
 @app.route("/api/branches", methods=["GET"])
