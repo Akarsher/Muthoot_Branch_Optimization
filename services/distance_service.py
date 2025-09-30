@@ -84,7 +84,7 @@ def get_distance_matrix(coords):
                             distance_matrix[matrix_i][matrix_j] = distance
                             time_matrix[matrix_i][matrix_j] = duration
                             
-                            print(f"Route {matrix_i}->{matrix_j}: {distance/1000:.2f} km, {duration//60} min")
+                            #print(f"Route {matrix_i}->{matrix_j}: {distance/1000:.2f} km, {duration//60} min")
                         else:
                             # Default values for failed routes
                             if matrix_i == matrix_j:

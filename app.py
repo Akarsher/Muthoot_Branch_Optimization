@@ -94,8 +94,8 @@ def plan_single_day(branches, distance_matrix, time_matrix, use_tsp_optimization
             # Total distance if we add this branch and return to HQ
             total_with_this_branch = day_distance + leg_distance + return_distance
             
-            print(f"  Branch {branch_idx} ({branches[branch_idx][1]}): "
-                  f"current {day_distance/1000:.1f}km + leg {leg_distance/1000:.1f}km + return {return_distance/1000:.1f}km = {total_with_this_branch/1000:.1f}km")
+            #print(f"  Branch {branch_idx} ({branches[branch_idx][1]}): "
+                  #f"current {day_distance/1000:.1f}km + leg {leg_distance/1000:.1f}km + return {return_distance/1000:.1f}km = {total_with_this_branch/1000:.1f}km")
             
             # Check if this branch fits within the daily limit
             if total_with_this_branch <= MAX_DISTANCE_PER_DAY:
@@ -112,8 +112,8 @@ def plan_single_day(branches, distance_matrix, time_matrix, use_tsp_optimization
             unvisited.remove(best_branch)
             day_branches_visited.append(best_branch)
             
-            print(f"✅ Added branch {best_branch} ({branches[best_branch][1]})")
-            print(f"   Running distance: {day_distance/1000:.1f}km")
+            #print(f"✅ Added branch {best_branch} ({branches[best_branch][1]})")
+            #print(f"   Running distance: {day_distance/1000:.1f}km")
         else:
             print(f"❌ No more branches can fit within {MAX_DISTANCE_PER_DAY/1000}km limit")
     
@@ -123,14 +123,14 @@ def plan_single_day(branches, distance_matrix, time_matrix, use_tsp_optimization
         day_route.append(hq_index)
         day_distance += final_return_distance
         
-        print(f"🏠 Return to HQ: +{final_return_distance/1000:.1f}km")
-        print(f"📊 Final distance: {day_distance/1000:.1f}km")
-        print(f"📍 Visited {len(day_branches_visited)} branches: {[branches[i][1] for i in day_branches_visited]}")
-        print(f"🗺️ Route: {' → '.join([branches[i][1] for i in day_route])}")
+        #print(f"🏠 Return to HQ: +{final_return_distance/1000:.1f}km")
+        #print(f"📊 Final distance: {day_distance/1000:.1f}km")
+        #print(f"📍 Visited {len(day_branches_visited)} branches: {[branches[i][1] for i in day_branches_visited]}")
+        #print(f"🗺️ Route: {' → '.join([branches[i][1] for i in day_route])}")
         
         # Optimize route order with TSP if requested and beneficial
         if use_tsp_optimization and len(day_branches_visited) > 2:
-            print(f"🔄 Optimizing route order with TSP...")
+            #print(f"🔄 Optimizing route order with TSP...")
             try:
                 optimized_route = optimize_daily_route(
                     distance_matrix, 
@@ -150,7 +150,7 @@ def plan_single_day(branches, distance_matrix, time_matrix, use_tsp_optimization
                     if opt_distance <= MAX_DISTANCE_PER_DAY and opt_distance < day_distance:
                         day_route = optimized_route
                         day_distance = opt_distance
-                        print(f"✅ Using TSP optimized route (saved {(day_distance - opt_distance)/1000:.1f}km)")
+                        #print(f"✅ Using TSP optimized route (saved {(day_distance - opt_distance)/1000:.1f}km)")
                         print(f"🗺️ Optimized: {' → '.join([branches[i][1] for i in day_route])}")
                     else:
                         print(f"➡️ Keeping original route (TSP didn't improve or exceeded limit)")
@@ -305,7 +305,7 @@ def plan_multi_day(branches, distance_matrix, time_matrix, use_tsp_optimization=
 
 
 def debug_distance_matrix(branches, distance_matrix):
-    """Print distance matrix for debugging"""
+    '''"""Print distance matrix for debugging"""
     n = len(branches)
     print(f"\n📊 Distance Matrix ({n}x{n}) in km:")
     
@@ -334,7 +334,7 @@ def debug_distance_matrix(branches, distance_matrix):
             print()
     
     if n > 8:
-        print("  ⋮")
+        print("  ⋮")'''
 
 
 # ------------------ Flask Routes ------------------
