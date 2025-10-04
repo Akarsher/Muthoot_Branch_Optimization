@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request
 import sqlite3
+import os
 from models.branch_model import create_tables
 from services.distance_service import get_distance_matrix
 from services.map_service import generate_map
@@ -748,4 +749,5 @@ def show_map(day_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # use clouds's port if available
+    app.run(host="0.0.0.0", port=port, debug=True)
