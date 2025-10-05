@@ -1,15 +1,16 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session
 import sqlite3
 import os
 from models.branch_model import create_tables
 from services.distance_service import get_distance_matrix
 from services.map_service import generate_map
-from config import DB_PATH, GOOGLE_MAPS_API_KEY
+from config import DB_PATH, GOOGLE_MAPS_API_KEY, SECRET_KEY
 from services.tsp_solver import optimize_daily_route
 
 MAX_DISTANCE_PER_DAY = 180_000  # 180 km in meters
 
 app = Flask(__name__)
+app.secret_key = SECRET_KEY
 
 
 # Global variable to store last route data
@@ -25,6 +26,24 @@ def get_last_route():
     global last_route_data
     return last_route_data
 
+# Try to initialize DB at import time
+_DB_INIT_DONE = False
+try:
+    create_tables()
+    _DB_INIT_DONE = True
+except Exception as e:
+    print(f"⚠️ DB init at import warning: {e}")
+
+@app.before_request
+def _ensure_db_initialized_guard():
+    global _DB_INIT_DONE
+    if not _DB_INIT_DONE:
+        try:
+            create_tables()
+            _DB_INIT_DONE = True
+        except Exception as e:
+            print(f"⚠️ DB init (before_request) warning: {e}")
+
 
 def get_branches():
     """Get all branches from database"""
@@ -38,6 +57,25 @@ def get_branches():
     branches = cursor.fetchall()
     conn.close()
     return branches
+
+
+# --------------- Auth Helpers ---------------
+import hashlib
+
+def hash_password(pw: str) -> str:
+    return hashlib.sha256(pw.encode("utf-8")).hexdigest()
+
+def current_user():
+    return session.get("user")
+
+def require_role(*roles):
+    user = current_user()
+    if not user or user.get("role") not in roles:
+        return False
+    return True
+
+def get_db():
+    return sqlite3.connect(DB_PATH)
 
 
 def mark_branch_visited(branch_id):
@@ -342,13 +380,107 @@ def debug_distance_matrix(branches, distance_matrix):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    # If not logged in, redirect to explicit /login page
+    if not current_user():
+        return redirect(url_for("login"))
+    return render_template("index.html", user=current_user())
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html")
+    # Ensure tables exist before attempting to query
+    try:
+        create_tables()
+    except Exception as e:
+        print(f"⚠️ DB init during login warning: {e}")
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    role = request.form.get("role", "auditor")  # 'admin' or 'auditor'
+    conn = get_db()
+    cur = conn.cursor()
+    table = "admins" if role == "admin" else "auditors"
+    cur.execute(f"SELECT id, username, password_hash, 1 FROM {table} WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return render_template("login.html", error="Invalid credentials")
+    if row[2] != hash_password(password):
+        return render_template("login.html", error="Invalid credentials")
+    # if auditor, check active flag
+    if table == "auditors" and row[3] != 1:
+        return render_template("login.html", error="Auditor is inactive")
+
+    session["user"] = {"id": row[0], "username": row[1], "role": role}
+    if role == "admin":
+        return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("index"))
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.route("/admin", methods=["GET"])
+def admin_dashboard():
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("admin.html", user=current_user())
+
+
+@app.route("/admin/register-auditor", methods=["POST"])
+def admin_register_auditor():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    data = request.get_json() or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not username or not password:
+        return jsonify({"success": False, "error": "Username and password required"}), 400
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO auditors (username, password_hash, created_by_admin_id) VALUES (?, ?, ?)",
+            (username, hash_password(password), current_user()["id"]),
+        )
+        conn.commit()
+        return jsonify({"success": True, "message": f"Auditor '{username}' created"})
+    except sqlite3.IntegrityError:
+        return jsonify({"success": False, "error": "Username already exists"}), 409
+    finally:
+        conn.close()
+
+
+@app.route("/api/auditors", methods=["GET"])
+def api_list_auditors():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, username, active, created_at FROM auditors ORDER BY username")
+        rows = cur.fetchall()
+        conn.close()
+        items = [
+            {"id": r[0], "username": r[1], "active": r[2], "created_at": r[3]}
+            for r in rows
+        ]
+        return jsonify({"success": True, "items": items})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 
 @app.route("/api/plan", methods=["POST"])
 def api_plan_single_day():
     """Plan a single day route"""
     try:
+        # auditors and admins can plan
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         print("🚀 Starting single day route planning...")
         
         create_tables()
@@ -489,6 +621,8 @@ def api_plan_single_day():
 def api_plan_multi_day():
     """Plan all remaining days at once (original behavior)"""
     try:
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         print("🚀 Starting multi-day route planning...")
         
         create_tables()
@@ -716,6 +850,8 @@ def api_get_branches():
 def api_reset_branches():
     """Reset all branches to unvisited state"""
     try:
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         reset_all_branches()
         return jsonify({"success": True, "message": "All branches reset to unvisited"})
     except Exception as e:
@@ -726,6 +862,8 @@ def api_reset_branches():
 def api_status():
     """Get current status of branches"""
     try:
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         branches = get_branches()
         total_branches = sum(1 for b in branches if b[5] == 0)
         visited_branches = sum(1 for b in branches if b[5] == 0 and len(b) > 6 and b[6] == 1)
@@ -742,9 +880,30 @@ def api_status():
         return jsonify({"error": f"Status check failed: {str(e)}", "success": False})
 
 
+@app.route("/api/visited-branches", methods=["GET"])
+def api_visited_branches():
+    """List visited branches (non-HQ)"""
+    try:
+        if not require_role("admin", "auditor"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, name, address FROM branches WHERE is_hq = 0 AND visited = 1 ORDER BY name"
+        )
+        rows = cur.fetchall()
+        conn.close()
+        items = [{"id": r[0], "name": r[1], "address": r[2]} for r in rows]
+        return jsonify({"success": True, "count": len(items), "items": items})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
 @app.route("/map/day/<int:day_id>")
 def show_map(day_id):
-    # Just serve the generated map.html (same for all days now)
+    # Admin can visit generated path also; both roles can view maps
+    if not require_role("auditor", "admin"):
+        return redirect(url_for("login"))
     return render_template("map.html")
 
 

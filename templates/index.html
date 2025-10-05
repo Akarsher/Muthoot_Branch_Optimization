@@ -119,6 +119,15 @@
 </head>
 <body>
   <h1>Branch Route Planner</h1>
+  <div>
+    {% if user %}
+      Logged in as <strong>{{ user.username }}</strong> ({{ user.role }})
+      | <a href="/logout">Logout</a>
+      {% if user.role == 'admin' %} | <a href="/admin">Admin</a>{% endif %}
+    {% else %}
+      <a href="/login">Login</a>
+    {% endif %}
+  </div>
   
   <div class="status-box" id="status">
     <p>Loading status...</p>
