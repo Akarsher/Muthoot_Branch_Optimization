@@ -68,7 +68,7 @@
       <div class="box" onclick="toggleSection('auditorSection')">
         <h3>View Auditor Details</h3>
         <div class="desc">Click to view existing auditors and add new ones</div>
-        <div id="auditorSection" class="section">
+  <div id="auditorSection" class="section" onclick="event.stopPropagation()">
           <div class="card" style="margin-top:10px;">
             <h3>Auditors</h3>
             <div id="audMsg"></div>
