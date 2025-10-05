@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
+# Flask secret key for sessions (set in .env as SECRET_KEY). Fallback for dev only.
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
+
 # Database Configuration
 DB_PATH = "data/branches.db"
 
