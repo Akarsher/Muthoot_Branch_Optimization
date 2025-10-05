@@ -24,7 +24,7 @@
     .stat .value { font-size: 22px; font-weight: 700; }
     .visited-list { display:none; margin-top: 8px; border:1px solid #ccc; border-radius: 6px; max-height:240px; overflow:auto; background:#fff; color:#000; padding:8px; }
     .visited-list ul { padding-left: 18px; margin:0; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; align-items: start; }
     .box { border:1px solid #bbb; border-radius:8px; padding:12px; cursor:pointer; background:#f7f7f7; }
     .box h3 { margin:0 0 8px; font-size:16px; }
     .box .desc { color:#555; font-size:13px; }
@@ -39,7 +39,6 @@
     <div class="topbar">
       <h2>Admin Dashboard</h2>
       <div>
-        <a href="/">Home</a>
         <a href="/logout">Logout ({{ user.username }})</a>
       </div>
     </div>
