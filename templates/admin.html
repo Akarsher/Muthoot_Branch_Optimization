@@ -6,10 +6,7 @@
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
     .wrap { max-width: 800px; margin: 20px auto; }
-  .card { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    label { display:block; margin: 8px 0 4px; }
-    input { width: 100%; padding: 8px; }
-    button { margin-top: 8px; padding: 8px 12px; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-bottom: 16px; cursor: pointer; }
     .success { color: #28a745; }
     .error { color: #dc3545; }
     .topbar { display:flex; justify-content: space-between; align-items:center; }
@@ -24,14 +21,14 @@
     .stat .value { font-size: 22px; font-weight: 700; }
     .visited-list { display:none; margin-top: 8px; border:1px solid #ccc; border-radius: 6px; max-height:240px; overflow:auto; background:#fff; color:#000; padding:8px; }
     .visited-list ul { padding-left: 18px; margin:0; }
-  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; align-items: start; }
-    .box { border:1px solid #bbb; border-radius:8px; padding:12px; cursor:pointer; background:#f7f7f7; }
-    .box h3 { margin:0 0 8px; font-size:16px; }
-    .box .desc { color:#555; font-size:13px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; align-items: start; }
     .section { display:none; margin-top:10px; }
     table { width:100%; border-collapse: collapse; }
     th, td { border:1px solid #ddd; padding:6px 8px; font-size: 13px; }
     th { background:#eee; text-align:left; }
+    label { display:block; margin: 8px 0 4px; }
+    input { width: 100%; padding: 8px; }
+    button { margin-top: 8px; padding: 8px 12px; }
   </style>
 </head>
 <body>
@@ -43,6 +40,8 @@
       </div>
     </div>
     <div class="hello">Welcome Admin</div>
+    
+    <!-- Stats Card -->
     <div class="card">
       <div class="stats" id="stats">
         <div class="stat total">
@@ -63,40 +62,52 @@
         <ul id="visitedItems"></ul>
       </div>
     </div>
+    
+    <!-- Action Cards Grid -->
     <div class="grid">
-      <div class="box" onclick="toggleSection('auditorSection')">
-        <h3>View Auditor Details</h3>
-        <div class="desc">Click to view existing auditors and add new ones</div>
-  <div id="auditorSection" class="section" onclick="event.stopPropagation()">
-          <div class="card" style="margin-top:10px;">
-            <h3>Auditors</h3>
-            <div id="audMsg"></div>
-            <table>
-              <thead>
-                <tr><th>Username</th><th>Active</th><th>Created</th></tr>
-              </thead>
-              <tbody id="audTable"></tbody>
-            </table>
-          </div>
-          <div class="card">
-            <h3>Add Auditor</h3>
-            <div id="msg"></div>
-            <label for="auser">Username</label>
-            <input id="auser">
-            <label for="apass">Password</label>
-            <input id="apass" type="password">
-            <button onclick="registerAuditor()">Create Auditor</button>
-          </div>
-        </div>
+      <div class="card" onclick="toggleSection('auditorSection')">
+        <h3>👥 Manage Auditors</h3>
+        <p>Create and manage auditor accounts</p>
       </div>
-      <div class="box" onclick="goToOptimization()">
-        <h3>Route Optimization</h3>
-        <div class="desc">Open route planning and map visualization</div>
+      
+      <div class="card" onclick="goToBranchManagement()">
+        <h3>🏢 Branch Management</h3>
+        <p>View and manage all branches</p>
+      </div>
+      
+      <div class="card" onclick="goToOptimization()">
+        <h3>🗺️ Route Optimization</h3>
+        <p>Plan and optimize delivery routes</p>
+      </div>
+    </div>
+
+    <!-- Auditor Management Section (Hidden by default) -->
+    <div class="section" id="auditorSection">
+      <div class="card">
+        <h3>Add Auditor</h3>
+        <div id="msg"></div>
+        <label for="auser">Username</label>
+        <input id="auser">
+        <label for="apass">Password</label>
+        <input id="apass" type="password">
+        <button onclick="registerAuditor()">Create Auditor</button>
+      </div>
+      
+      <div class="card">
+        <h3>Existing Auditors</h3>
+        <div id="audMsg"></div>
+        <table>
+          <thead>
+            <tr><th>Username</th><th>Active</th><th>Created</th></tr>
+          </thead>
+          <tbody id="audTable"></tbody>
+        </table>
       </div>
     </div>
   </div>
 
   <script>
+    // Load statistics on page load
     async function loadStats() {
       try {
         const res = await fetch('/api/status');
@@ -110,6 +121,7 @@
       }
     }
 
+    // Toggle visited branches list
     async function toggleVisitedList() {
       const listBox = document.getElementById('visitedList');
       const isVisible = listBox.style.display === 'block';
@@ -138,11 +150,7 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadStats();
-      const visitedCard = document.getElementById('visitedCard');
-      if (visitedCard) visitedCard.addEventListener('click', toggleVisitedList);
-    });
+    // Toggle sections visibility
     function toggleSection(id) {
       const el = document.getElementById(id);
       if (!el) return;
@@ -152,11 +160,19 @@
       }
     }
 
+    // Register new auditor
     async function registerAuditor() {
       const username = document.getElementById('auser').value.trim();
       const password = document.getElementById('apass').value;
       const msg = document.getElementById('msg');
       msg.textContent = '';
+      
+      if (!username || !password) {
+        msg.className = 'error';
+        msg.textContent = 'Username and password are required';
+        return;
+      }
+      
       try {
         const res = await fetch('/admin/register-auditor', {
           method: 'POST',
@@ -167,6 +183,8 @@
         if (data.success) {
           msg.className = 'success';
           msg.textContent = data.message;
+          document.getElementById('auser').value = '';
+          document.getElementById('apass').value = '';
           loadAuditors();
         } else {
           msg.className = 'error';
@@ -178,6 +196,7 @@
       }
     }
 
+    // Load auditors list
     async function loadAuditors() {
       const table = document.getElementById('audTable');
       const audMsg = document.getElementById('audMsg');
@@ -202,10 +221,21 @@
       }
     }
 
+    // Navigation functions
     function goToOptimization() {
-      // Route optimization is the main index page for planning
       window.location.href = '/';
     }
+
+    function goToBranchManagement() {
+      window.location.href = '/admin/branches';
+    }
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      const visitedCard = document.getElementById('visitedCard');
+      if (visitedCard) visitedCard.addEventListener('click', toggleVisitedList);
+    });
   </script>
 </body>
 </html>
