@@ -454,6 +454,44 @@ def admin_register_auditor():
     finally:
         conn.close()
 
+# New endpoint: admin can add branches
+@app.route("/admin/add-branch", methods=["POST"])
+def admin_add_branch():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        data = request.get_json() or {}
+        name = (data.get("name") or "").strip()
+        address = (data.get("address") or "").strip()
+        lat = data.get("lat")
+        lng = data.get("lng")
+        is_hq = int(data.get("is_hq") or 0)
+
+        if not name:
+            return jsonify({"success": False, "error": "Branch name is required"}), 400
+        if lat is None or lng is None:
+            return jsonify({"success": False, "error": "Latitude and longitude required"}), 400
+
+        # Validate numeric coordinates
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid latitude or longitude"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO branches (name, address, lat, lng, is_hq, visited)
+            VALUES (?, ?, ?, ?, ?, 0)
+        """, (name, address, lat, lng, is_hq))
+        conn.commit()
+        conn.close()
+
+        return jsonify({"success": True, "message": f"Branch '{name}' added"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route("/api/auditors", methods=["GET"])
 def api_list_auditors():
@@ -905,6 +943,39 @@ def show_map(day_id):
     if not require_role("auditor", "admin"):
         return redirect(url_for("login"))
     return render_template("map.html")
+
+
+@app.route("/admin/branches", methods=["GET"])
+def admin_branches_page():
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("branch_management.html", user=current_user())
+
+@app.route("/api/branches", methods=["GET"])
+def api_list_branches():
+    """Get all branches with their status"""
+    try:
+        if not require_role("admin", "auditor"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+            
+        branches = get_all_branches_with_status()
+        
+        branch_list = []
+        for branch in branches:
+            branch_list.append({
+                "id": branch[0],
+                "name": branch[1],
+                "address": branch[2],
+                "lat": branch[3],
+                "lng": branch[4],
+                "is_hq": bool(branch[5]),
+                "visited": bool(branch[6])
+            })
+        
+        return jsonify({"success": True, "branches": branch_list})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 if __name__ == "__main__":
