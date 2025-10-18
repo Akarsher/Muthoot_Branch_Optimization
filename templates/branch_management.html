@@ -57,6 +57,15 @@
         .badge-unvisited { background: #fff3cd; color: #856404; }
         
         .coordinates { font-family: 'Courier New', monospace; font-size: 11px; color: #666; }
+        
+        .delete-btn { 
+            background: #dc3545; color: white; border: none; padding: 6px 12px; 
+            border-radius: 4px; cursor: pointer; font-size: 12px; 
+        }
+        .delete-btn:hover { background: #c82333; }
+        .delete-btn:disabled { background: #6c757d; cursor: not-allowed; }
+        
+        .action-buttons { display: flex; gap: 5px; }
     </style>
 </head>
 <body>
@@ -123,6 +132,7 @@
                         <li>Only one branch can be marked as HQ</li>
                         <li>Address is optional but recommended</li>
                         <li>Coordinates should be in decimal format</li>
+                        <li>⚠️ Be careful when deleting branches - this action cannot be undone</li>
                     </ul>
                 </div>
             </div>
@@ -145,6 +155,7 @@
                         <th>Address</th>
                         <th>Coordinates</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="branchTableBody">
@@ -230,23 +241,86 @@
             }
             
             noBranches.style.display = 'none';
-            tbody.innerHTML = branches.map(branch => `
-                <tr>
-                    <td><strong>${branch.name}</strong></td>
-                    <td>
-                        <span class="badge ${branch.is_hq ? 'badge-hq' : 'badge-branch'}">
-                            ${branch.is_hq ? '🏢 HQ' : '📍 Branch'}
-                        </span>
-                    </td>
-                    <td>${branch.address || '<em>No address</em>'}</td>
-                    <td class="coordinates">${branch.lat.toFixed(4)}, ${branch.lng.toFixed(4)}</td>
-                    <td>
-                        <span class="badge ${branch.visited ? 'badge-visited' : 'badge-unvisited'}">
-                            ${branch.visited ? '✅ Visited' : '⏳ Unvisited'}
-                        </span>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = branches.map(branch => {
+                const canDelete = !branch.is_hq || allBranches.filter(b => b.is_hq).length > 1;
+                const deleteButton = canDelete 
+                    ? `<button class="delete-btn" onclick="confirmDeleteBranch(${branch.id}, '${branch.name.replace(/'/g, "\\'")}')">Delete</button>`
+                    : `<button class="delete-btn" disabled title="Cannot delete the only headquarters">Delete</button>`;
+                
+                return `
+                    <tr>
+                        <td><strong>${branch.name}</strong></td>
+                        <td>
+                            <span class="badge ${branch.is_hq ? 'badge-hq' : 'badge-branch'}">
+                                ${branch.is_hq ? '🏢 HQ' : '📍 Branch'}
+                            </span>
+                        </td>
+                        <td>${branch.address || '<em>No address</em>'}</td>
+                        <td class="coordinates">${branch.lat.toFixed(4)}, ${branch.lng.toFixed(4)}</td>
+                        <td>
+                            <span class="badge ${branch.visited ? 'badge-visited' : 'badge-unvisited'}">
+                                ${branch.visited ? '✅ Visited' : '⏳ Unvisited'}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                ${deleteButton}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Confirm and delete branch
+        function confirmDeleteBranch(branchId, branchName) {
+            const confirmed = confirm(
+                `⚠️ DELETE CONFIRMATION ⚠️\n\n` +
+                `Are you sure you want to permanently delete "${branchName}"?\n\n` +
+                `This action will:\n` +
+                `• Remove the branch from the system\n` +
+                `• Cannot be undone\n` +
+                `• May affect existing routes\n\n` +
+                `Type "DELETE" to confirm, or click Cancel to abort.`
+            );
+            
+            if (confirmed) {
+                // Additional confirmation for critical action
+                const secondConfirm = prompt(
+                    `Final confirmation required.\n\n` +
+                    `To delete "${branchName}", please type: DELETE`
+                );
+                
+                if (secondConfirm === "DELETE") {
+                    deleteBranch(branchId, branchName);
+                } else if (secondConfirm !== null) {
+                    alert("Deletion cancelled - incorrect confirmation text.");
+                }
+            }
+        }
+
+        // Delete branch
+        async function deleteBranch(branchId, branchName) {
+            try {
+                showMessage('info', `Deleting "${branchName}"...`);
+                
+                const res = await fetch(`/admin/delete-branch/${branchId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    showMessage('success', `Branch "${branchName}" has been deleted successfully.`);
+                    // Reload everything
+                    await loadBranches();
+                } else {
+                    showMessage('error', data.error || 'Failed to delete branch');
+                }
+            } catch (err) {
+                showMessage('error', 'Error: ' + err.message);
+            }
         }
 
         async function addBranch() {
