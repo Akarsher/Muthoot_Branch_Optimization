@@ -493,6 +493,46 @@ def admin_add_branch():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/admin/delete-branch/<int:branch_id>", methods=["DELETE"])
+def admin_delete_branch(branch_id):
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # First, check if the branch exists
+        cur.execute("SELECT name, is_hq FROM branches WHERE id = ?", (branch_id,))
+        branch = cur.fetchone()
+        
+        if not branch:
+            return jsonify({"success": False, "error": "Branch not found"}), 404
+        
+        branch_name, is_hq = branch[0], branch[1]
+        
+        # Prevent deletion of HQ if it's the only HQ
+        if is_hq:
+            cur.execute("SELECT COUNT(*) FROM branches WHERE is_hq = 1")
+            hq_count = cur.fetchone()[0]
+            if hq_count <= 1:
+                return jsonify({"success": False, "error": "Cannot delete the only headquarters"}), 400
+        
+        # Delete the branch
+        cur.execute("DELETE FROM branches WHERE id = ?", (branch_id,))
+        
+        if cur.rowcount == 0:
+            return jsonify({"success": False, "error": "Branch not found or already deleted"}), 404
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "message": f"Branch '{branch_name}' deleted successfully"})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/auditors", methods=["GET"])
 def api_list_auditors():
     if not require_role("admin"):
