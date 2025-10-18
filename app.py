@@ -991,33 +991,6 @@ def admin_branches_page():
         return redirect(url_for("login"))
     return render_template("branch_management.html", user=current_user())
 
-@app.route("/api/branches", methods=["GET"])
-def api_list_branches():
-    """Get all branches with their status"""
-    try:
-        if not require_role("admin", "auditor"):
-            return jsonify({"success": False, "error": "Unauthorized"}), 401
-            
-        branches = get_all_branches_with_status()
-        
-        branch_list = []
-        for branch in branches:
-            branch_list.append({
-                "id": branch[0],
-                "name": branch[1],
-                "address": branch[2],
-                "lat": branch[3],
-                "lng": branch[4],
-                "is_hq": bool(branch[5]),
-                "visited": bool(branch[6])
-            })
-        
-        return jsonify({"success": True, "branches": branch_list})
-        
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # use clouds's port if available
     app.run(host="0.0.0.0", port=port, debug=True)
