@@ -70,11 +70,6 @@
         <p>Create and manage auditor accounts</p>
       </div>
       
-      <div class="card" onclick="toggleSection('branchSection')">
-        <h3>🗑️ Delete Branches</h3>
-        <p>Remove branches from the system</p>
-      </div>
-      
       <div class="card" onclick="goToBranchManagement()">
         <h3>🏢 Branch Management</h3>
         <p>View and manage all branches</p>
@@ -106,23 +101,6 @@
             <tr><th>Username</th><th>Active</th><th>Created</th></tr>
           </thead>
           <tbody id="audTable"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Branch Deletion Section (Hidden by default) -->
-    <div class="section" id="branchSection">
-      <div class="card">
-        <h3>Delete Branches</h3>
-        <div id="branchMsg"></div>
-        <p style="color: #dc3545; font-size: 14px; margin-bottom: 15px;">
-          ⚠️ <strong>Warning:</strong> Deleting branches is permanent and cannot be undone!
-        </p>
-        <table>
-          <thead>
-            <tr><th>Name</th><th>Address</th><th>Type</th><th>Status</th><th>Action</th></tr>
-          </thead>
-          <tbody id="branchTable"></tbody>
         </table>
       </div>
     </div>
@@ -179,9 +157,6 @@
       el.style.display = (el.style.display === 'block') ? 'none' : 'block';
       if (id === 'auditorSection' && el.style.display === 'block') {
         loadAuditors();
-      }
-      if (id === 'branchSection' && el.style.display === 'block') {
-        loadBranchesForDeletion();
       }
     }
 
@@ -246,93 +221,6 @@
       }
     }
 
-    // Load branches for deletion
-    async function loadBranchesForDeletion() {
-      const table = document.getElementById('branchTable');
-      const branchMsg = document.getElementById('branchMsg');
-      table.innerHTML = '';
-      branchMsg.textContent = '';
-      branchMsg.className = '';
-      
-      try {
-        const res = await fetch('/api/branches');
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed');
-        
-        if (data.branches.length === 0) {
-          table.innerHTML = '<tr><td colspan="5">No branches found.</td></tr>';
-        } else {
-          data.branches.forEach(branch => {
-            const tr = document.createElement('tr');
-            const typeText = branch.is_hq ? 'HQ' : 'Branch';
-            const statusText = branch.visited ? 'Visited' : 'Unvisited';
-            const typeColor = branch.is_hq ? 'color: #9b59b6; font-weight: bold;' : '';
-            const statusColor = branch.visited ? 'color: #28a745;' : 'color: #ffc107;';
-            
-            tr.innerHTML = `
-              <td><strong>${branch.name}</strong></td>
-              <td>${branch.address || '<em>No address</em>'}</td>
-              <td style="${typeColor}">${typeText}</td>
-              <td style="${statusColor}">${statusText}</td>
-              <td>
-                <button onclick="confirmDeleteBranch(${branch.id}, '${branch.name.replace(/'/g, "\\'")}')" 
-                        style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                  Delete
-                </button>
-              </td>
-            `;
-            table.appendChild(tr);
-          });
-        }
-      } catch (e) {
-        branchMsg.className = 'error';
-        branchMsg.textContent = 'Failed to load branches: ' + e.message;
-      }
-    }
-
-    // Confirm and delete branch
-    function confirmDeleteBranch(branchId, branchName) {
-      const confirmed = confirm(
-        `Are you sure you want to delete "${branchName}"?\n\n` +
-        `This action cannot be undone and will permanently remove this branch from the system.\n\n` +
-        `Click OK to proceed or Cancel to abort.`
-      );
-      
-      if (confirmed) {
-        deleteBranch(branchId, branchName);
-      }
-    }
-
-    // Delete branch
-    async function deleteBranch(branchId, branchName) {
-      const branchMsg = document.getElementById('branchMsg');
-      branchMsg.textContent = '';
-      branchMsg.className = '';
-      
-      try {
-        const res = await fetch(`/admin/delete-branch/${branchId}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
-        const data = await res.json();
-        
-        if (data.success) {
-          branchMsg.className = 'success';
-          branchMsg.textContent = `Branch "${branchName}" has been deleted successfully.`;
-          // Reload the branch list and stats
-          loadBranchesForDeletion();
-          loadStats();
-        } else {
-          branchMsg.className = 'error';
-          branchMsg.textContent = data.error || 'Failed to delete branch';
-        }
-      } catch (err) {
-        branchMsg.className = 'error';
-        branchMsg.textContent = 'Error: ' + err.message;
-      }
-    }
-
     // Navigation functions
     function goToOptimization() {
       window.location.href = '/';
@@ -351,4 +239,3 @@
   </script>
 </body>
 </html>
-``` 
