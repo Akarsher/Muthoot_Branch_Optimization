@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Auditor Profile</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 20px; }
+    .card { max-width: 700px; border: 1px solid #ddd; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display:flex; gap:20px; }
+    .left { width: 220px; text-align:center; position:relative; }
+    .avatar { width:160px; height:160px; border-radius:8px; object-fit:cover; border:1px solid #ccc; }
+
+    /* edit icon overlay */
+    .edit-icon {
+      position: absolute;
+      bottom: 35px;
+      right: 35px;
+      background-color: #007bff;
+      color: white;
+      border-radius: 50%;
+      padding: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      border: 2px solid white;
+      transition: background-color 0.3s;
+    }
+
+    .edit-icon:hover {
+      background-color: #0056b3;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .right { flex:1; }
+    .row { display:flex; gap:10px; margin:8px 0; align-items:center; }
+    .label { width:130px; color:#555; font-weight:600; }
+    .value input { width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; }
+    .actions { margin-top:18px; display:flex; gap:10px; justify-content:flex-end; }
+    .btn { padding:8px 12px; border-radius:6px; text-decoration:none; color:#fff; border:none; cursor:pointer; }
+    .btn-primary { background:#007bff; }
+    .btn-secondary { background:#6c757d; }
+    .small { font-size:0.9rem; color:#666; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="left">
+      {% set avatar_url = url_for('static', filename=user.avatar) if user.get('avatar') else url_for('static', filename='images/user.png') %}
+      <img id="avatarPreview" src="{{ avatar_url }}" class="avatar" alt="avatar">
+
+      <!-- hidden input for avatar upload -->
+      <input id="avatar" name="avatar" type="file" accept="image/*">
+      <div class="edit-icon" id="editIcon">✏️</div>
+    </div>
+
+    <div class="right">
+      <h2>Auditor Profile</h2>
+
+      <form method="post" enctype="multipart/form-data">
+        <div class="row">
+          <div class="label"> Username</div>
+          <div class="value">{{ user.username }}</div>
+        </div>
+
+        <div class="row">
+          <div class="label">Full name</div>
+          <div class="value">
+            <input name="name" type="text" placeholder="Enter full name" value="{{ user.name or '' }}">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">Email</div>
+          <div class="value">
+            <input name="email" type="email" placeholder="Enter email address" value="{{ user.email or '' }}">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">Phone</div>
+          <div class="value">
+            <input name="phone" type="tel" placeholder="Enter phone number" value="{{ user.phone or '' }}">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">Role</div>
+          <div class="value">{{ user.role }}</div>
+        </div>
+
+        <div class="actions">
+          <a class="btn btn-secondary" href="{{ url_for('index') }}">Back</a>
+          <button type="submit" class="btn btn-primary">Save Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script>
+  const avatarInput = document.getElementById('avatar');
+  const avatarPreview = document.getElementById('avatarPreview');
+  const editIcon = document.getElementById('editIcon');
+
+  // click icon → open file picker
+  editIcon.addEventListener('click', () => {
+    avatarInput.click();
+  });
+
+  // preview selected image
+  avatarInput.addEventListener('change', (evt) => {
+    const file = evt.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    avatarPreview.src = url;
+  });
+</script>
+</body>
+</html>

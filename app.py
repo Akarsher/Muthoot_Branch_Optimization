@@ -1,15 +1,18 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session
 import sqlite3
 import os
+import time
+from werkzeug.utils import secure_filename
 from models.branch_model import create_tables
 from services.distance_service import get_distance_matrix
 from services.map_service import generate_map
-from config import DB_PATH, GOOGLE_MAPS_API_KEY
+from config import DB_PATH, GOOGLE_MAPS_API_KEY, SECRET_KEY
 from services.tsp_solver import optimize_daily_route
 
 MAX_DISTANCE_PER_DAY = 180_000  # 180 km in meters
 
 app = Flask(__name__)
+app.secret_key = SECRET_KEY
 
 
 # Global variable to store last route data
@@ -25,6 +28,24 @@ def get_last_route():
     global last_route_data
     return last_route_data
 
+# Try to initialize DB at import time
+_DB_INIT_DONE = False
+try:
+    create_tables()
+    _DB_INIT_DONE = True
+except Exception as e:
+    print(f"⚠️ DB init at import warning: {e}")
+
+@app.before_request
+def _ensure_db_initialized_guard():
+    global _DB_INIT_DONE
+    if not _DB_INIT_DONE:
+        try:
+            create_tables()
+            _DB_INIT_DONE = True
+        except Exception as e:
+            print(f"⚠️ DB init (before_request) warning: {e}")
+
 
 def get_branches():
     """Get all branches from database"""
@@ -38,6 +59,25 @@ def get_branches():
     branches = cursor.fetchall()
     conn.close()
     return branches
+
+
+# --------------- Auth Helpers ---------------
+import hashlib
+
+def hash_password(pw: str) -> str:
+    return hashlib.sha256(pw.encode("utf-8")).hexdigest()
+
+def current_user():
+    return session.get("user")
+
+def require_role(*roles):
+    user = current_user()
+    if not user or user.get("role") not in roles:
+        return False
+    return True
+
+def get_db():
+    return sqlite3.connect(DB_PATH)
 
 
 def mark_branch_visited(branch_id):
@@ -299,7 +339,7 @@ def plan_multi_day(branches, distance_matrix, time_matrix, use_tsp_optimization=
     print(f"📍 Visited {total_branches_visited} out of {total_branches_available} branches")
     
     if total_branches_visited < total_branches_available:
-        remaining = [i for i, b in enumerate(branches) if b[5] == 0 and i in unvisited]
+        remaining = [i for i in range(len(branches)) if branches[i][5] == 0 and i in unvisited]
         print(f"⚠️ Remaining unvisited branches: {[branches[i][1] for i in remaining]}")
     
     return days
@@ -342,13 +382,185 @@ def debug_distance_matrix(branches, distance_matrix):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    # If not logged in, redirect to explicit /login page
+    if not current_user():
+        return redirect(url_for("login"))
+    return render_template("index.html", user=current_user())
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html")
+    # Ensure tables exist before attempting to query
+    try:
+        create_tables()
+    except Exception as e:
+        print(f"⚠️ DB init during login warning: {e}")
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    role = request.form.get("role", "auditor")  # 'admin' or 'auditor'
+    conn = get_db()
+    cur = conn.cursor()
+    table = "admins" if role == "admin" else "auditors"
+    cur.execute(f"SELECT id, username, password_hash, 1 FROM {table} WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return render_template("login.html", error="Invalid credentials")
+    if row[2] != hash_password(password):
+        return render_template("login.html", error="Invalid credentials")
+    # if auditor, check active flag
+    if table == "auditors" and row[3] != 1:
+        return render_template("login.html", error="Auditor is inactive")
+
+    session["user"] = {"id": row[0], "username": row[1], "role": role}
+    if role == "admin":
+        return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("index"))
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.route("/admin", methods=["GET"])
+def admin_dashboard():
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("admin.html", user=current_user())
+
+
+@app.route("/admin/register-auditor", methods=["POST"])
+def admin_register_auditor():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    data = request.get_json() or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not username or not password:
+        return jsonify({"success": False, "error": "Username and password required"}), 400
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO auditors (username, password_hash, created_by_admin_id) VALUES (?, ?, ?)",
+            (username, hash_password(password), current_user()["id"]),
+        )
+        conn.commit()
+        return jsonify({"success": True, "message": f"Auditor '{username}' created"})
+    except sqlite3.IntegrityError:
+        return jsonify({"success": False, "error": "Username already exists"}), 409
+    finally:
+        conn.close()
+
+# New endpoint: admin can add branches
+@app.route("/admin/add-branch", methods=["POST"])
+def admin_add_branch():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        data = request.get_json() or {}
+        name = (data.get("name") or "").strip()
+        address = (data.get("address") or "").strip()
+        lat = data.get("lat")
+        lng = data.get("lng")
+        is_hq = int(data.get("is_hq") or 0)
+
+        if not name:
+            return jsonify({"success": False, "error": "Branch name is required"}), 400
+        if lat is None or lng is None:
+            return jsonify({"success": False, "error": "Latitude and longitude required"}), 400
+
+        # Validate numeric coordinates
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid latitude or longitude"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO branches (name, address, lat, lng, is_hq, visited)
+            VALUES (?, ?, ?, ?, ?, 0)
+        """, (name, address, lat, lng, is_hq))
+        conn.commit()
+        conn.close()
+
+        return jsonify({"success": True, "message": f"Branch '{name}' added"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/admin/delete-branch/<int:branch_id>", methods=["DELETE"])
+def admin_delete_branch(branch_id):
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # First, check if the branch exists
+        cur.execute("SELECT name, is_hq FROM branches WHERE id = ?", (branch_id,))
+        branch = cur.fetchone()
+        
+        if not branch:
+            return jsonify({"success": False, "error": "Branch not found"}), 404
+        
+        branch_name, is_hq = branch[0], branch[1]
+        
+        # Prevent deletion of HQ if it's the only HQ
+        if is_hq:
+            cur.execute("SELECT COUNT(*) FROM branches WHERE is_hq = 1")
+            hq_count = cur.fetchone()[0]
+            if hq_count <= 1:
+                return jsonify({"success": False, "error": "Cannot delete the only headquarters"}), 400
+        
+        # Delete the branch
+        cur.execute("DELETE FROM branches WHERE id = ?", (branch_id,))
+        
+        if cur.rowcount == 0:
+            return jsonify({"success": False, "error": "Branch not found or already deleted"}), 404
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "message": f"Branch '{branch_name}' deleted successfully"})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/auditors", methods=["GET"])
+def api_list_auditors():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, username, active, created_at FROM auditors ORDER BY username")
+        rows = cur.fetchall()
+        conn.close()
+        items = [
+            {"id": r[0], "username": r[1], "active": r[2], "created_at": r[3]}
+            for r in rows
+        ]
+        return jsonify({"success": True, "items": items})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 
 @app.route("/api/plan", methods=["POST"])
 def api_plan_single_day():
     """Plan a single day route"""
     try:
+        # auditors and admins can plan
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         print("🚀 Starting single day route planning...")
         
         create_tables()
@@ -489,6 +701,8 @@ def api_plan_single_day():
 def api_plan_multi_day():
     """Plan all remaining days at once (original behavior)"""
     try:
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         print("🚀 Starting multi-day route planning...")
         
         create_tables()
@@ -716,6 +930,8 @@ def api_get_branches():
 def api_reset_branches():
     """Reset all branches to unvisited state"""
     try:
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         reset_all_branches()
         return jsonify({"success": True, "message": "All branches reset to unvisited"})
     except Exception as e:
@@ -726,6 +942,8 @@ def api_reset_branches():
 def api_status():
     """Get current status of branches"""
     try:
+        if not require_role("auditor", "admin"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
         branches = get_branches()
         total_branches = sum(1 for b in branches if b[5] == 0)
         visited_branches = sum(1 for b in branches if b[5] == 0 and len(b) > 6 and b[6] == 1)
@@ -742,11 +960,155 @@ def api_status():
         return jsonify({"error": f"Status check failed: {str(e)}", "success": False})
 
 
+@app.route("/api/visited-branches", methods=["GET"])
+def api_visited_branches():
+    """List visited branches (non-HQ)"""
+    try:
+        if not require_role("admin", "auditor"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, name, address FROM branches WHERE is_hq = 0 AND visited = 1 ORDER BY name"
+        )
+        rows = cur.fetchall()
+        conn.close()
+        items = [{"id": r[0], "name": r[1], "address": r[2]} for r in rows]
+        return jsonify({"success": True, "count": len(items), "items": items})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
 @app.route("/map/day/<int:day_id>")
 def show_map(day_id):
-    # Just serve the generated map.html (same for all days now)
+    # Admin can visit generated path also; both roles can view maps
+    if not require_role("auditor", "admin"):
+        return redirect(url_for("login"))
     return render_template("map.html")
 
+
+@app.route("/admin/branches", methods=["GET"])
+def admin_branches_page():
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("branch_management.html", user=current_user())
+
+# ----------------- small fixes: remove duplicate endpoints & provide helpers -----------------
+
+def get_auditor(username):
+    """Return auditor record as a dict or None."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, username, active, created_at, email, name, phone, branch FROM auditors WHERE username = ?",
+            (username,),
+        )
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            return None
+        # Build dict safely (some tables may not have all columns; guard by index)
+        return {
+            "id": row[0],
+            "username": row[1],
+            "active": row[2] if len(row) > 2 else None,
+            "created_at": row[3] if len(row) > 3 else None,
+            "email": row[4] if len(row) > 4 else None,
+            "name": row[5] if len(row) > 5 else None,
+            "phone": row[6] if len(row) > 6 else None,
+            "branch": row[7] if len(row) > 7 else None,
+            "role": "auditor",
+        }
+    except Exception:
+        return None
+
+
+# Lightweight "login as" helper route for testing / quick links.
+# NOTE: renamed to avoid colliding with the main /login endpoint.
+@app.route('/login_as/<username>')
+def login_as(username):
+    auditor = get_auditor(username)
+    if auditor:
+        # Set session user in the same shape used by the main login flow
+        session['user'] = {
+            "id": auditor.get("id"),
+            "username": auditor.get("username"),
+            "role": "auditor",
+            "name": auditor.get("name"),
+            "email": auditor.get("email"),
+        }
+        return redirect(url_for('auditor_profile'))
+    return "Auditor not found", 404
+
+
+# Canonical auditor profile route that checks session["user"] and renders the template.
+@app.route('/auditor/profile', methods=['GET', 'POST'])
+def auditor_profile():
+    user = session.get('user')
+    if not user:
+        return redirect(url_for('login'))
+    if user.get('role') != 'auditor':
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        name = (request.form.get('name') or "").strip()
+        email = (request.form.get('email') or "").strip()
+        phone = (request.form.get('phone') or "").strip()
+
+        avatar_file = request.files.get('avatar')
+        avatar_rel_path = None
+
+        if avatar_file and avatar_file.filename:
+            ext = avatar_file.filename.rsplit('.', 1)[-1].lower()
+            if ext in ALLOWED_EXT:
+                safe_name = secure_filename(f"{user.get('username')}_{int(time.time())}.{ext}")
+                save_path = os.path.join(UPLOAD_FOLDER, safe_name)
+                avatar_file.save(save_path)
+                # store relative to /static
+                avatar_rel_path = os.path.join('uploads', safe_name).replace("\\", "/")
+
+        # Try to persist to DB if columns exist; ignore failures so page still works
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            # Build SQL dynamically depending on whether avatar column exists / file uploaded
+            if avatar_rel_path:
+                cur.execute(
+                    "UPDATE auditors SET name = ?, email = ?, phone = ?, avatar_path = ? WHERE id = ?",
+                    (name or None, email or None, phone or None, avatar_rel_path, user["id"]),
+                )
+            else:
+                cur.execute(
+                    "UPDATE auditors SET name = ?, email = ?, phone = ? WHERE id = ?",
+                    (name or None, email or None, phone or None, user["id"]),
+                )
+            conn.commit()
+            conn.close()
+        except Exception:
+            # DB may not have these columns; ignore and update session so UI still shows changes
+            pass
+
+        # Update session copy so template shows latest immediately
+        sess = session.setdefault("user", {})
+        if name:
+            sess["name"] = name
+        if email:
+            sess["email"] = email
+        if phone:
+            sess["phone"] = phone
+        if avatar_rel_path:
+            sess["avatar"] = avatar_rel_path
+
+        session.modified = True
+        return redirect(url_for('auditor_profile'))
+
+    # GET: try to fetch fresh details from DB, fall back to session
+    auditor = get_auditor(user.get('username')) or user
+    # if DB didn't return an avatar but session has one, prefer session (recent upload)
+    if not auditor.get("avatar") and user.get("avatar"):
+        auditor["avatar"] = user.get("avatar")
+    return render_template('auditor_profile.html', user=auditor)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # use clouds's port if available

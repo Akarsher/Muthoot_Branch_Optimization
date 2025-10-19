@@ -115,10 +115,36 @@
     .success { color: #28a745; }
     .error { color: #dc3545; }
     .info { color: #17a2b8; }
+.user-nav {
+  display: flex;
+  align-items: center; /* Vertically centers all items */
+  gap: 15px; /* Adds nice spacing between the left-side items */
+  margin-bottom: 10px; /* Adds some space below the bar */
+}
+.user-nav .save-button {
+      margin-left: auto; /* This is the magic! Pushes the button to the right */
+      margin-top: 0; /* Overrides the default 10px top margin */
+    }
+    .save-button{
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <h1>Branch Route Planner</h1>
+  <div class="user-nav">
+    {% if user %}
+      <span>Logged in as <strong>{{ user.username }}</strong> ({{ user.role }})</span>
+       <a href="/logout">Logout</a>
+      {% if user.role == 'admin' %}  <a href="/admin">Admin</a>{% endif %}
+      {% if user.role == 'auditor' %}
+       <!-- Auditor-only profile button -->
+         <a class="save-button" href="{{ url_for('auditor_profile') }}">View Profile</a>
+    {% endif %}
+    {% else %}
+      <a href="/login">Login</a>
+    {% endif %}
+  </div>
   
   <div class="status-box" id="status">
     <p>Loading status...</p>

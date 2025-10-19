@@ -24,6 +24,16 @@ def get_all_branches(include_visited=False):
         for row in rows
     ]
 
+def get_auditor(username):
+    conn = sqlite3.connect('auditors.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT username FROM auditors WHERE username=?", (username,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {"username": row[0]}  # return just username for now
+    return None
+
 def mark_branches_visited(branch_ids):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -53,3 +63,5 @@ def get_headquarters():
             "lng": row[4]
         }
     return None
+
+
