@@ -8,6 +8,8 @@ from services.distance_service import get_distance_matrix
 from services.map_service import generate_map
 from config import DB_PATH, GOOGLE_MAPS_API_KEY, SECRET_KEY
 from services.tsp_solver import optimize_daily_route
+import re
+import time
 
 MAX_DISTANCE_PER_DAY = 180_000  # 180 km in meters
 
@@ -402,8 +404,13 @@ def login():
     role = request.form.get("role", "auditor")  # 'admin' or 'auditor'
     conn = get_db()
     cur = conn.cursor()
-    table = "admins" if role == "admin" else "auditors"
-    cur.execute(f"SELECT id, username, password_hash, 1 FROM {table} WHERE username = ?", (username,))
+    # Query appropriate table and include 'active' for auditors
+    if role == "admin":
+        table = "admins"
+        cur.execute("SELECT id, username, password_hash FROM admins WHERE username = ?", (username,))
+    else:
+        table = "auditors"
+        cur.execute("SELECT id, username, password_hash, active FROM auditors WHERE username = ?", (username,))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -411,7 +418,7 @@ def login():
     if row[2] != hash_password(password):
         return render_template("login.html", error="Invalid credentials")
     # if auditor, check active flag
-    if table == "auditors" and row[3] != 1:
+    if table == "auditors" and (len(row) < 4 or row[3] != 1):
         return render_template("login.html", error="Auditor is inactive")
 
     session["user"] = {"id": row[0], "username": row[1], "role": role}
@@ -1000,27 +1007,34 @@ def get_auditor(username):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT id, username, active, created_at, email, name, phone, branch FROM auditors WHERE username = ?",
-            (username,),
-        )
+
+        # Inspect existing columns and build a safe select list
+        cur.execute("PRAGMA table_info(auditors)")
+        cols = [r[1] for r in cur.fetchall()]
+
+        preferred = ["id", "username", "active", "created_at", "email", "name", "phone", "avatar"]
+        select_cols = [c for c in preferred if c in cols]
+        if not select_cols:
+            conn.close()
+            return None
+
+        sql = "SELECT " + ", ".join(select_cols) + " FROM auditors WHERE username = ?"
+        cur.execute(sql, (username,))
         row = cur.fetchone()
         conn.close()
         if not row:
             return None
-        # Build dict safely (some tables may not have all columns; guard by index)
-        return {
-            "id": row[0],
-            "username": row[1],
-            "active": row[2] if len(row) > 2 else None,
-            "created_at": row[3] if len(row) > 3 else None,
-            "email": row[4] if len(row) > 4 else None,
-            "name": row[5] if len(row) > 5 else None,
-            "phone": row[6] if len(row) > 6 else None,
-            "branch": row[7] if len(row) > 7 else None,
-            "role": "auditor",
-        }
+
+        auditor = {"role": "auditor"}
+        for idx, col in enumerate(select_cols):
+            auditor[col] = row[idx]
+
+        return auditor
     except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
         return None
 
 
@@ -1043,72 +1057,147 @@ def login_as(username):
 
 
 # Canonical auditor profile route that checks session["user"] and renders the template.
+UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
+ALLOWED_EXT = {"png", "jpg", "jpeg", "gif"}
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
+
+def ensure_auditor_columns():
+    """Add name,email,phone,avatar columns to auditors table if missing (safe no-op if present)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(auditors)")
+        cols = [r[1] for r in cur.fetchall()]
+        if "name" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN name TEXT")
+        if "email" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN email TEXT")
+        if "phone" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN phone TEXT")
+        if "avatar" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN avatar TEXT")
+        conn.commit()
+    except Exception:
+        # ignore DB alter errors (concurrency / first-run edge cases), page still works
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+# Replace or add this auditor_profile route (GET + POST)
 @app.route('/auditor/profile', methods=['GET', 'POST'])
 def auditor_profile():
-    user = session.get('user')
-    if not user:
+    user_session = session.get('user')
+    if not user_session:
         return redirect(url_for('login'))
-    if user.get('role') != 'auditor':
+    if user_session.get('role') != 'auditor':
         return redirect(url_for('index'))
+
+    ensure_auditor_columns()
+
+    errors = {}
+    form_values = {}
 
     if request.method == 'POST':
         name = (request.form.get('name') or "").strip()
         email = (request.form.get('email') or "").strip()
         phone = (request.form.get('phone') or "").strip()
 
-        avatar_file = request.files.get('avatar')
-        avatar_rel_path = None
+        form_values = {"name": name, "email": email, "phone": phone}
 
-        if avatar_file and avatar_file.filename:
-            ext = avatar_file.filename.rsplit('.', 1)[-1].lower()
-            if ext in ALLOWED_EXT:
-                safe_name = secure_filename(f"{user.get('username')}_{int(time.time())}.{ext}")
-                save_path = os.path.join(UPLOAD_FOLDER, safe_name)
-                avatar_file.save(save_path)
-                # store relative to /static
-                avatar_rel_path = os.path.join('uploads', safe_name).replace("\\", "/")
-
-        # Try to persist to DB if columns exist; ignore failures so page still works
-        try:
-            conn = get_db()
-            cur = conn.cursor()
-            # Build SQL dynamically depending on whether avatar column exists / file uploaded
-            if avatar_rel_path:
-                cur.execute(
-                    "UPDATE auditors SET name = ?, email = ?, phone = ?, avatar_path = ? WHERE id = ?",
-                    (name or None, email or None, phone or None, avatar_rel_path, user["id"]),
-                )
-            else:
-                cur.execute(
-                    "UPDATE auditors SET name = ?, email = ?, phone = ? WHERE id = ?",
-                    (name or None, email or None, phone or None, user["id"]),
-                )
-            conn.commit()
-            conn.close()
-        except Exception:
-            # DB may not have these columns; ignore and update session so UI still shows changes
-            pass
-
-        # Update session copy so template shows latest immediately
-        sess = session.setdefault("user", {})
+        # Validation only if field provided (fields are optional)
         if name:
-            sess["name"] = name
+            if not re.match(r'^[A-Za-z ]+$', name):
+                errors['name'] = "Name must contain only letters and spaces."
+            elif len(name) < 2:
+                errors['name'] = "Name is too short."
+
         if email:
-            sess["email"] = email
+            if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+                errors['email'] = "Invalid email address."
+
         if phone:
-            sess["phone"] = phone
-        if avatar_rel_path:
-            sess["avatar"] = avatar_rel_path
+            digits = re.sub(r'\D', '', phone)
+            if len(digits) != 10:
+                errors['phone'] = "Phone number must have exactly 10 digits."
+            else:
+                phone = digits  # normalize to digits only
 
-        session.modified = True
-        return redirect(url_for('auditor_profile'))
+        # avatar optional
+        avatar_rel = None
+        avatar_file = request.files.get('avatar')
+        if avatar_file and avatar_file.filename:
+            if allowed_file(avatar_file.filename):
+                ext = avatar_file.filename.rsplit('.', 1)[1].lower()
+                filename = secure_filename(f"{user_session.get('username')}_{int(time.time())}.{ext}")
+                save_path = os.path.join(UPLOAD_FOLDER, filename)
+                avatar_file.save(save_path)
+                avatar_rel = os.path.join('uploads', filename).replace("\\", "/")
+            else:
+                errors['avatar'] = "Unsupported file type."
 
-    # GET: try to fetch fresh details from DB, fall back to session
-    auditor = get_auditor(user.get('username')) or user
-    # if DB didn't return an avatar but session has one, prefer session (recent upload)
-    if not auditor.get("avatar") and user.get("avatar"):
-        auditor["avatar"] = user.get("avatar")
-    return render_template('auditor_profile.html', user=auditor)
+        if not errors:
+            # Persist only the provided fields (so uploading only avatar is allowed)
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                updates = []
+                params = []
+                if name:
+                    updates.append("name = ?"); params.append(name)
+                if email:
+                    updates.append("email = ?"); params.append(email)
+                if phone:
+                    updates.append("phone = ?"); params.append(phone)
+                if avatar_rel:
+                    updates.append("avatar = ?"); params.append(avatar_rel)
+                if updates:
+                    params.append(user_session["id"])
+                    sql = f"UPDATE auditors SET {', '.join(updates)} WHERE id = ?"
+                    cur.execute(sql, params)
+                    conn.commit()
+                conn.close()
+            except Exception as e:
+                print(f"⚠️ Could not persist auditor profile to DB: {e}")
+
+            # Update session so user sees changes immediately
+            sess = session.setdefault("user", {})
+            if name:
+                sess["name"] = name
+            if email:
+                sess["email"] = email
+            if phone:
+                sess["phone"] = phone
+            if avatar_rel:
+                sess["avatar"] = avatar_rel
+            session.modified = True
+
+            return redirect(url_for('auditor_profile'))
+
+    # Build context from DB (preferred) so values persist across logout/login
+    auditor_db = get_auditor(user_session.get('username')) or {}
+
+    user_context = {
+        "id": auditor_db.get("id") or user_session.get("id"),
+        "username": auditor_db.get("username") or user_session.get("username"),
+        "role": auditor_db.get("role") or user_session.get("role", "auditor"),
+        "name": auditor_db.get("name") or user_session.get("name") or "",
+        "email": auditor_db.get("email") or user_session.get("email") or "",
+        "phone": auditor_db.get("phone") or user_session.get("phone") or "",
+        "avatar": auditor_db.get("avatar") or user_session.get("avatar") or None,
+    }
+
+    # If there was a submitted form (validation failed), prefer submitted values so inputs keep what user typed
+    for k, v in form_values.items():
+        if v is not None:
+            user_context[k] = v
+
+    return render_template('auditor_profile.html', user=user_context, errors=errors)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # use clouds's port if available
