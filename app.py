@@ -1,11 +1,15 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session
 import sqlite3
 import os
+import time
+from werkzeug.utils import secure_filename
 from models.branch_model import create_tables
 from services.distance_service import get_distance_matrix
 from services.map_service import generate_map
 from config import DB_PATH, GOOGLE_MAPS_API_KEY, SECRET_KEY
 from services.tsp_solver import optimize_daily_route
+import re
+import time
 
 MAX_DISTANCE_PER_DAY = 180_000  # 180 km in meters
 
@@ -337,7 +341,7 @@ def plan_multi_day(branches, distance_matrix, time_matrix, use_tsp_optimization=
     print(f"📍 Visited {total_branches_visited} out of {total_branches_available} branches")
     
     if total_branches_visited < total_branches_available:
-        remaining = [i for i, b in enumerate(branches) if b[5] == 0 and i in unvisited]
+        remaining = [i for i in range(len(branches)) if branches[i][5] == 0 and i in unvisited]
         print(f"⚠️ Remaining unvisited branches: {[branches[i][1] for i in remaining]}")
     
     return days
@@ -400,8 +404,13 @@ def login():
     role = request.form.get("role", "auditor")  # 'admin' or 'auditor'
     conn = get_db()
     cur = conn.cursor()
-    table = "admins" if role == "admin" else "auditors"
-    cur.execute(f"SELECT id, username, password_hash, 1 FROM {table} WHERE username = ?", (username,))
+    # Query appropriate table and include 'active' for auditors
+    if role == "admin":
+        table = "admins"
+        cur.execute("SELECT id, username, password_hash FROM admins WHERE username = ?", (username,))
+    else:
+        table = "auditors"
+        cur.execute("SELECT id, username, password_hash, active FROM auditors WHERE username = ?", (username,))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -409,7 +418,7 @@ def login():
     if row[2] != hash_password(password):
         return render_template("login.html", error="Invalid credentials")
     # if auditor, check active flag
-    if table == "auditors" and row[3] != 1:
+    if table == "auditors" and (len(row) < 4 or row[3] != 1):
         return render_template("login.html", error="Auditor is inactive")
 
     session["user"] = {"id": row[0], "username": row[1], "role": role}
@@ -990,6 +999,205 @@ def admin_branches_page():
     if not require_role("admin"):
         return redirect(url_for("login"))
     return render_template("branch_management.html", user=current_user())
+
+# ----------------- small fixes: remove duplicate endpoints & provide helpers -----------------
+
+def get_auditor(username):
+    """Return auditor record as a dict or None."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Inspect existing columns and build a safe select list
+        cur.execute("PRAGMA table_info(auditors)")
+        cols = [r[1] for r in cur.fetchall()]
+
+        preferred = ["id", "username", "active", "created_at", "email", "name", "phone", "avatar"]
+        select_cols = [c for c in preferred if c in cols]
+        if not select_cols:
+            conn.close()
+            return None
+
+        sql = "SELECT " + ", ".join(select_cols) + " FROM auditors WHERE username = ?"
+        cur.execute(sql, (username,))
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            return None
+
+        auditor = {"role": "auditor"}
+        for idx, col in enumerate(select_cols):
+            auditor[col] = row[idx]
+
+        return auditor
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return None
+
+
+# Lightweight "login as" helper route for testing / quick links.
+# NOTE: renamed to avoid colliding with the main /login endpoint.
+@app.route('/login_as/<username>')
+def login_as(username):
+    auditor = get_auditor(username)
+    if auditor:
+        # Set session user in the same shape used by the main login flow
+        session['user'] = {
+            "id": auditor.get("id"),
+            "username": auditor.get("username"),
+            "role": "auditor",
+            "name": auditor.get("name"),
+            "email": auditor.get("email"),
+        }
+        return redirect(url_for('auditor_profile'))
+    return "Auditor not found", 404
+
+
+# Canonical auditor profile route that checks session["user"] and renders the template.
+UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
+ALLOWED_EXT = {"png", "jpg", "jpeg", "gif"}
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
+
+def ensure_auditor_columns():
+    """Add name,email,phone,avatar columns to auditors table if missing (safe no-op if present)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(auditors)")
+        cols = [r[1] for r in cur.fetchall()]
+        if "name" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN name TEXT")
+        if "email" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN email TEXT")
+        if "phone" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN phone TEXT")
+        if "avatar" not in cols:
+            cur.execute("ALTER TABLE auditors ADD COLUMN avatar TEXT")
+        conn.commit()
+    except Exception:
+        # ignore DB alter errors (concurrency / first-run edge cases), page still works
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+# Replace or add this auditor_profile route (GET + POST)
+@app.route('/auditor/profile', methods=['GET', 'POST'])
+def auditor_profile():
+    user_session = session.get('user')
+    if not user_session:
+        return redirect(url_for('login'))
+    if user_session.get('role') != 'auditor':
+        return redirect(url_for('index'))
+
+    ensure_auditor_columns()
+
+    errors = {}
+    form_values = {}
+
+    if request.method == 'POST':
+        name = (request.form.get('name') or "").strip()
+        email = (request.form.get('email') or "").strip()
+        phone = (request.form.get('phone') or "").strip()
+
+        form_values = {"name": name, "email": email, "phone": phone}
+
+        # Validation only if field provided (fields are optional)
+        if name:
+            if not re.match(r'^[A-Za-z ]+$', name):
+                errors['name'] = "Name must contain only letters and spaces."
+            elif len(name) < 2:
+                errors['name'] = "Name is too short."
+
+        if email:
+            if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+                errors['email'] = "Invalid email address."
+
+        if phone:
+            digits = re.sub(r'\D', '', phone)
+            if len(digits) != 10:
+                errors['phone'] = "Phone number must have exactly 10 digits."
+            else:
+                phone = digits  # normalize to digits only
+
+        # avatar optional
+        avatar_rel = None
+        avatar_file = request.files.get('avatar')
+        if avatar_file and avatar_file.filename:
+            if allowed_file(avatar_file.filename):
+                ext = avatar_file.filename.rsplit('.', 1)[1].lower()
+                filename = secure_filename(f"{user_session.get('username')}_{int(time.time())}.{ext}")
+                save_path = os.path.join(UPLOAD_FOLDER, filename)
+                avatar_file.save(save_path)
+                avatar_rel = os.path.join('uploads', filename).replace("\\", "/")
+            else:
+                errors['avatar'] = "Unsupported file type."
+
+        if not errors:
+            # Persist only the provided fields (so uploading only avatar is allowed)
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                updates = []
+                params = []
+                if name:
+                    updates.append("name = ?"); params.append(name)
+                if email:
+                    updates.append("email = ?"); params.append(email)
+                if phone:
+                    updates.append("phone = ?"); params.append(phone)
+                if avatar_rel:
+                    updates.append("avatar = ?"); params.append(avatar_rel)
+                if updates:
+                    params.append(user_session["id"])
+                    sql = f"UPDATE auditors SET {', '.join(updates)} WHERE id = ?"
+                    cur.execute(sql, params)
+                    conn.commit()
+                conn.close()
+            except Exception as e:
+                print(f"⚠️ Could not persist auditor profile to DB: {e}")
+
+            # Update session so user sees changes immediately
+            sess = session.setdefault("user", {})
+            if name:
+                sess["name"] = name
+            if email:
+                sess["email"] = email
+            if phone:
+                sess["phone"] = phone
+            if avatar_rel:
+                sess["avatar"] = avatar_rel
+            session.modified = True
+
+            return redirect(url_for('auditor_profile'))
+
+    # Build context from DB (preferred) so values persist across logout/login
+    auditor_db = get_auditor(user_session.get('username')) or {}
+
+    user_context = {
+        "id": auditor_db.get("id") or user_session.get("id"),
+        "username": auditor_db.get("username") or user_session.get("username"),
+        "role": auditor_db.get("role") or user_session.get("role", "auditor"),
+        "name": auditor_db.get("name") or user_session.get("name") or "",
+        "email": auditor_db.get("email") or user_session.get("email") or "",
+        "phone": auditor_db.get("phone") or user_session.get("phone") or "",
+        "avatar": auditor_db.get("avatar") or user_session.get("avatar") or None,
+    }
+
+    # If there was a submitted form (validation failed), prefer submitted values so inputs keep what user typed
+    for k, v in form_values.items():
+        if v is not None:
+            user_context[k] = v
+
+    return render_template('auditor_profile.html', user=user_context, errors=errors)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # use clouds's port if available

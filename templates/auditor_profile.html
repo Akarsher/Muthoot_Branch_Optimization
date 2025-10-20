@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Auditor Profile</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background: #f4f6f9;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 30px 40px;
+      max-width: 700px;
+      width: 90%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 25px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #333;
+      font-size: 1.8rem;
+      border-bottom: 3px solid #007bff;
+      padding-bottom: 6px;
+      margin-bottom: 0;
+      width: 100%;
+    }
+
+    .profile-section {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+
+    .avatar-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    .avatar {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #e0e0e0;
+      background: #f0f0f0;
+    }
+
+    .edit-icon {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      background: #007bff;
+      color: #fff;
+      border-radius: 50%;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-size: 16px;
+      transition: 0.2s ease;
+    }
+
+    .edit-icon:hover {
+      background: #0056b3;
+      transform: scale(1.05);
+    }
+
+    input[type="file"] { display: none; }
+
+    .details {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 250px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .label {
+      width: 100px;
+      font-weight: 600;
+      color: #555;
+      text-align: left;
+    }
+
+    .value {
+      flex: 1;
+      max-width: 200px;
+    }
+
+    .value input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+
+    .value input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 3px rgba(0,123,255,0.2);
+    }
+
+    .actions {
+      margin-top: 25px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .btn {
+      padding: 9px 16px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: 0.2s ease;
+    }
+
+    .btn-primary {
+      background: #007bff;
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: #0056b3; }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: #fff;
+      text-decoration: none;
+    }
+
+    .btn-secondary:hover { background: #565e64; }
+
+    .error { color: #b00020; font-size: 0.9rem; margin-top: 6px; }
+
+    @media (max-width: 600px) {
+      .profile-section {
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .details {
+        align-items: center;
+      }
+
+      .row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .label {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Auditor Profile</h2>
+
+    <form id="profileForm" method="post" enctype="multipart/form-data" novalidate>
+      <div class="profile-section">
+        <div class="avatar-container">
+          {% set avatar_path = user.get('avatar') %}
+          {% set avatar_url = url_for('static', filename=avatar_path) if avatar_path else url_for('static', filename='images/user.png') %}
+          <img id="avatarPreview" src="{{ avatar_url }}" class="avatar" alt="avatar">
+          <div class="edit-icon" id="editIcon" title="Change picture">✏️</div>
+          <input id="avatar" name="avatar" type="file" accept="image/*">
+        </div>
+
+        <div class="details">
+          <div class="row">
+            <div class="label">Username:</div>
+            <div class="value">{{ user.get('username','') }}</div>
+          </div>
+
+          <div class="row">
+            <div class="label">Full name:</div>
+            <div class="value">
+              <input id="name" name="name" type="text" value="{{ user.get('name','') }}">
+              {% if errors and errors.get('name') %}<div class="error">{{ errors.get('name') }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="label">Email:</div>
+            <div class="value">
+              <input id="email" name="email" type="email" value="{{ user.get('email','') }}">
+              {% if errors and errors.get('email') %}<div class="error">{{ errors.get('email') }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="label">Phone:</div>
+            <div class="value">
+              <input id="phone" name="phone" type="tel" value="{{ user.get('phone','') }}">
+              {% if errors and errors.get('phone') %}<div class="error">{{ errors.get('phone') }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="label">Role:</div>
+            <div class="value">{{ user.get('role','') }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a class="btn btn-secondary" href="{{ url_for('index') }}">Back</a>
+        <button type="submit" class="btn btn-primary">Save Profile</button>
+      </div>
+    </form>
+  </div>
+
+<script>
+  const avatarInput = document.getElementById('avatar');
+  const avatarPreview = document.getElementById('avatarPreview');
+  const editIcon = document.getElementById('editIcon');
+  const form = document.getElementById('profileForm');
+
+  editIcon.addEventListener('click', () => avatarInput.click());
+  avatarInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    avatarPreview.src = URL.createObjectURL(f);
+  });
+
+  // Client-side validation -> show errors in an alert
+  function isNameValid(s) {
+    return /^[A-Za-z ]+$/.test(s);
+  }
+  function isEmailValid(s) {
+    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
+  }
+  function digitCount(s) {
+    return (s||'').replace(/\D/g,'').length;
+  }
+
+  form.addEventListener('submit', (e) => {
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+
+    const errors = [];
+
+    // Fields are optional — validate only if provided
+    if (name) {
+      if (!isNameValid(name)) errors.push("Name must contain only letters and spaces.");
+      else if (name.length < 2) errors.push("Name is too short.");
+    }
+
+    if (email) {
+      if (!isEmailValid(email)) errors.push("Invalid email address.");
+    }
+
+    if (phone) {
+      const d = digitCount(phone);
+      if (d !== 10) errors.push("Phone number must have exactly 10 digits.");
+    }
+
+    if (errors.length) {
+      e.preventDefault();
+      alert(errors.join("\\n"));
+      return false;
+    }
+    return true;
+  });
+</script>
+</body>
+</html>
