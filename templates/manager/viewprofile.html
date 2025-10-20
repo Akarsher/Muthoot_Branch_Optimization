@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Branch Manager Profile</title>
+	<link rel="stylesheet" href="/static/css/style.css">
+	<style>
+		.container { max-width: 800px; margin: 24px auto; padding: 0 16px; }
+		.card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; background: #fff; }
+		.muted { color: #666; }
+		.row { display:flex; gap: 16px; flex-wrap: wrap; }
+		.col { flex: 1 1 320px; }
+		.btn { display:inline-block; padding: 8px 12px; border: 1px solid #007bff; background: #007bff; color: #fff; border-radius: 6px; text-decoration: none; }
+	</style>
+	</head>
+<body>
+	<div class="container">
+		<h2>My Profile</h2>
+		<div style="margin-bottom:10px"><a href="/manager">Back to Dashboard</a> • <a href="/logout">Logout</a></div>
+
+		<div class="row">
+			<div class="card col">
+				<h3>Manager Info</h3>
+				<p><strong>Name:</strong> {{ user.username }}</p>
+				<p><strong>Contact No:</strong> {{ user.contact_no }}</p>
+				<p><strong>Assigned Branch ID:</strong> {{ user.branch_id }}</p>
+			</div>
+			<div class="card col">
+				<h3>Assigned Branch</h3>
+				{% if branch %}
+					<p><strong>{{ branch[1] }}</strong></p>
+					<p class="muted">{{ branch[2] or 'No address' }}</p>
+					<p>Lat/Lng: {{ '%.6f'|format(branch[3]) }}, {{ '%.6f'|format(branch[4]) }}</p>
+					<div style="margin-top:10px">
+						<a class="btn" href="/manager/branch/edit">Edit Branch Details</a>
+					</div>
+				{% else %}
+					<p>No branch found.</p>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</body>
+</html>

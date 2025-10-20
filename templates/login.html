@@ -18,7 +18,7 @@
     <h2>Sign in</h2>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="POST" action="/login">
-      <label for="username">Username</label>
+      <label for="username" id="username-label">Username</label>
       <input id="username" name="username" required>
       <label for="password">Password</label>
       <input id="password" name="password" type="password" required>
@@ -26,9 +26,32 @@
       <select id="role" name="role">
         <option value="auditor">Auditor</option>
         <option value="admin">Admin</option>
+        <option value="manager">Branch Manager</option>
       </select>
       <button type="submit">Login</button>
     </form>
   </div>
+
+   <div style="text-align:center; margin-top:10px;">
+    <a href="/register_manager">Register as Branch Manager</a>
+  </div>
 </body>
+<script>
+  (function() {
+    const roleSel = document.getElementById('role');
+    const userLabel = document.getElementById('username-label');
+    const userInput = document.getElementById('username');
+    function update() {
+      if (roleSel.value === 'manager') {
+        userLabel.textContent = 'Manager Name';
+        userInput.placeholder = 'Enter your registered name';
+      } else {
+        userLabel.textContent = 'Username';
+        userInput.placeholder = '';
+      }
+    }
+    roleSel.addEventListener('change', update);
+    update();
+  })();
+</script>
 </html>

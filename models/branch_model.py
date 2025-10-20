@@ -21,6 +21,21 @@ def create_tables():
     )
     """)
 
+    # Branch managers table
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS branch_managers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            contact_no TEXT NOT NULL,
+            branch_id INTEGER NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(branch_id) REFERENCES branches(id)
+        )
+        """
+    )
+
     # Auth tables
     cur.execute(
         """
