@@ -62,6 +62,14 @@ def get_branches():
     conn.close()
     return branches
 
+def get_non_hq_branches():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM branches WHERE is_hq = 0 ORDER BY name")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
 
 # --------------- Auth Helpers ---------------
 import hashlib
@@ -99,6 +107,40 @@ def reset_all_branches():
     conn.commit()
     conn.close()
     print("🔄 All branches reset to unvisited")
+
+
+def ensure_branch_manager_columns():
+    """Ensure branch_managers table exists and has required columns (password_hash)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Make sure tables exist first
+        try:
+            create_tables()
+        except Exception:
+            pass
+        cur.execute("PRAGMA table_info(branch_managers)")
+        cols = [r[1] for r in cur.fetchall()]
+        if len(cols) == 0:
+            # Table missing; create via create_tables()
+            try:
+                create_tables()
+            except Exception:
+                pass
+        else:
+            if "password_hash" not in cols:
+                cur.execute("ALTER TABLE branch_managers ADD COLUMN password_hash TEXT DEFAULT ''")
+                conn.commit()
+            if "approved" not in cols:
+                cur.execute("ALTER TABLE branch_managers ADD COLUMN approved INTEGER DEFAULT 0")
+                conn.commit()
+        conn.close()
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"ensure_branch_manager_columns warning: {e}")
 
 
 def plan_single_day(branches, distance_matrix, time_matrix, use_tsp_optimization=True):
@@ -385,9 +427,17 @@ def debug_distance_matrix(branches, distance_matrix):
 @app.route("/")
 def index():
     # If not logged in, redirect to explicit /login page
-    if not current_user():
+    user = current_user()
+    if not user:
         return redirect(url_for("login"))
-    return render_template("index.html", user=current_user())
+    # Route users to their appropriate home pages
+    role = user.get("role")
+    if role == "admin":
+        return redirect(url_for("admin_dashboard"))
+    if role == "manager":
+        return redirect(url_for("manager_dashboard"))
+    # default auditor landing
+    return render_template("index.html", user=user)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -401,13 +451,25 @@ def login():
         print(f"⚠️ DB init during login warning: {e}")
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
-    role = request.form.get("role", "auditor")  # 'admin' or 'auditor'
+    role = request.form.get("role", "auditor")  # 'admin' or 'auditor' or 'manager'
+    if role == "manager":
+        ensure_branch_manager_columns()
     conn = get_db()
     cur = conn.cursor()
     # Query appropriate table and include 'active' for auditors
     if role == "admin":
         table = "admins"
         cur.execute("SELECT id, username, password_hash FROM admins WHERE username = ?", (username,))
+    elif role == "manager":
+        table = "branch_managers"
+        # For managers, use contact_no as the login identifier (entered in the username field)
+        ensure_branch_manager_columns()
+        # Now authenticate managers by their Name (case-insensitive)
+        cur.execute(
+            "SELECT id, name, contact_no, branch_id, password_hash, approved "
+            "FROM branch_managers WHERE name = ? COLLATE NOCASE",
+            (username,)
+        )
     else:
         table = "auditors"
         cur.execute("SELECT id, username, password_hash, active FROM auditors WHERE username = ?", (username,))
@@ -415,16 +477,198 @@ def login():
     conn.close()
     if not row:
         return render_template("login.html", error="Invalid credentials")
-    if row[2] != hash_password(password):
+    # Determine password hash index based on role query shape
+    if role == "manager":
+        pw_hash = row[4]
+    else:
+        pw_hash = row[2]
+    if pw_hash != hash_password(password):
         return render_template("login.html", error="Invalid credentials")
     # if auditor, check active flag
     if table == "auditors" and (len(row) < 4 or row[3] != 1):
         return render_template("login.html", error="Auditor is inactive")
+    # if manager, require approved flag
+    if table == "branch_managers":
+        approved = 0 if len(row) < 6 else (row[5] or 0)
+        if approved != 1:
+            return render_template("login.html", error="Manager is pending approval")
 
-    session["user"] = {"id": row[0], "username": row[1], "role": role}
-    if role == "admin":
-        return redirect(url_for("admin_dashboard"))
-    return redirect(url_for("index"))
+    # Build session payload per role
+    if role == "manager":
+        session["user"] = {
+            "id": row[0],
+            "username": row[1],  # manager name
+            "contact_no": row[2],
+            "branch_id": row[3],
+            "role": "manager",
+        }
+        return redirect(url_for("manager_dashboard"))
+    else:
+        session["user"] = {"id": row[0], "username": row[1], "role": role}
+        if role == "admin":
+            return redirect(url_for("admin_dashboard"))
+        return redirect(url_for("index"))
+
+
+# ----- Branch Manager Registration -----
+@app.route("/register_manager", methods=["GET"])
+def register_manager_page():
+    # Publicly accessible to allow managers to register
+    branches = get_non_hq_branches()
+    return render_template("register_manager.html", branches=branches)
+
+
+@app.route("/register_manager", methods=["POST"])
+def register_manager_submit():
+    try:
+        name = request.form.get("name", "").strip()
+        contact_no = request.form.get("contact_no", "").strip()
+        branch_id = request.form.get("branch_id", "").strip()
+        password = request.form.get("password", "")
+        if not name or not contact_no or not branch_id:
+            return render_template("register_manager.html", error="All fields are required", branches=get_non_hq_branches())
+        if not password:
+            return render_template("register_manager.html", error="Password is required", branches=get_non_hq_branches())
+        ensure_branch_manager_columns()
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        # New or update: set password; keep approved default 0 on (re)registration
+        cur.execute(
+            "INSERT OR REPLACE INTO branch_managers (id, name, contact_no, branch_id, password_hash, approved) "
+            "VALUES ((SELECT id FROM branch_managers WHERE branch_id = ?), ?, ?, ?, ?, 0)",
+            (int(branch_id), name, contact_no, int(branch_id), hash_password(password))
+        )
+        conn.commit()
+        conn.close()
+        return render_template("register_manager.html", success=True, branches=get_non_hq_branches())
+    except Exception as e:
+        return render_template("register_manager.html", error=str(e), branches=get_non_hq_branches())
+
+
+# ------------- Branch Manager Dashboard -------------
+@app.route("/manager", methods=["GET"])
+def manager_dashboard():
+    if not require_role("manager"):
+        return redirect(url_for("login"))
+    # Load assigned branch details
+    user = current_user()
+    branch = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, address, lat, lng, visited FROM branches WHERE id = ?", (user.get("branch_id"),))
+        branch = cur.fetchone()
+        conn.close()
+    except Exception:
+        branch = None
+    return render_template("manager/dashboard.html", user=user, branch=branch)
+
+
+@app.route("/manager/mark-visited", methods=["POST"])
+def manager_mark_visited():
+    if not require_role("manager"):
+        return redirect(url_for("login"))
+    user = current_user()
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE branches SET visited = 1 WHERE id = ?", (user.get("branch_id"),))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Manager mark visited failed: {e}")
+    return redirect(url_for("manager_dashboard"))
+
+
+@app.route('/manager/profile', methods=['GET'])
+def manager_view_profile():
+    if not require_role("manager"):
+        return redirect(url_for("login"))
+    user = current_user()
+    # Load branch info
+    branch = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, address, lat, lng, visited FROM branches WHERE id = ?", (user.get("branch_id"),))
+        branch = cur.fetchone()
+        conn.close()
+    except Exception:
+        branch = None
+    return render_template('manager/viewprofile.html', user=user, branch=branch)
+
+
+@app.route('/manager/branch/edit', methods=['GET'])
+def manager_branch_edit_page():
+    if not require_role("manager"):
+        return redirect(url_for("login"))
+    user = current_user()
+    branch = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, address, lat, lng FROM branches WHERE id = ?", (user.get("branch_id"),))
+        branch = cur.fetchone()
+        conn.close()
+    except Exception:
+        branch = None
+    return render_template('manager/edit_branchdetails.html', user=user, branch=branch)
+
+
+@app.route('/manager/branch/update', methods=['POST'])
+def manager_branch_update():
+    if not require_role("manager"):
+        return redirect(url_for("login"))
+    user = current_user()
+    name = (request.form.get('name') or '').strip()
+    address = (request.form.get('address') or '').strip()
+    lat = request.form.get('lat')
+    lng = request.form.get('lng')
+    errors = []
+    # Validate
+    if not name:
+        errors.append('Branch name is required')
+    try:
+        lat_val = float(lat)
+        lng_val = float(lng)
+    except Exception:
+        errors.append('Latitude and Longitude must be valid numbers')
+        lat_val = None
+        lng_val = None
+    if errors:
+        # Reload a page with errors - default send back to edit page
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT id, name, address, lat, lng FROM branches WHERE id = ?", (user.get("branch_id"),))
+            branch = cur.fetchone()
+            conn.close()
+        except Exception:
+            branch = None
+        return render_template('manager/edit_branchdetails.html', user=user, branch=branch, error='; '.join(errors))
+    # Persist
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE branches SET name = ?, address = ?, lat = ?, lng = ? WHERE id = ?",
+            (name, address, lat_val, lng_val, user.get('branch_id'))
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        return render_template('manager/edit_branchdetails.html', user=user, branch=(user.get('branch_id'), name, address, lat, lng), error=str(e))
+    # Redirect back to dashboard after update
+    return redirect(url_for('manager_dashboard'))
+
+
+@app.route("/api/branches/list", methods=["GET"])
+def api_branches_list():
+    try:
+        rows = get_non_hq_branches()
+        return jsonify({"success": True, "items": [{"id": r[0], "name": r[1]} for r in rows]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 
 @app.route("/logout")
@@ -999,6 +1243,90 @@ def admin_branches_page():
     if not require_role("admin"):
         return redirect(url_for("login"))
     return render_template("branch_management.html", user=current_user())
+
+
+# ---------------- Manager Registrations (Admin) ----------------
+@app.route("/admin/managers", methods=["GET"])
+def admin_managers_page():
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("admin_managers.html", user=current_user())
+
+
+@app.route("/api/admin/managers/pending", methods=["GET"])
+def api_admin_managers_pending():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        ensure_branch_manager_columns()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT m.id, m.name, m.contact_no, m.branch_id, m.approved, b.name, b.address FROM branch_managers m "
+            "LEFT JOIN branches b ON b.id = m.branch_id WHERE m.approved = 0 ORDER BY m.name"
+        )
+        rows = cur.fetchall()
+        conn.close()
+        items = [
+            {"id": r[0], "name": r[1], "contact_no": r[2], "branch_id": r[3], "approved": r[4], "branch_name": r[5], "branch_address": r[6]}
+            for r in rows
+        ]
+        return jsonify({"success": True, "items": items})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/admin/managers", methods=["GET"])
+def api_admin_managers_all():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        ensure_branch_manager_columns()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT m.id, m.name, m.contact_no, m.branch_id, m.approved, b.name, b.address FROM branch_managers m "
+            "LEFT JOIN branches b ON b.id = m.branch_id ORDER BY m.approved DESC, m.name"
+        )
+        rows = cur.fetchall()
+        conn.close()
+        items = [
+            {"id": r[0], "name": r[1], "contact_no": r[2], "branch_id": r[3], "approved": r[4], "branch_name": r[5], "branch_address": r[6]}
+            for r in rows
+        ]
+        return jsonify({"success": True, "items": items})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/admin/managers/<int:mid>/approve", methods=["POST"])
+def api_admin_manager_approve(mid):
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE branch_managers SET approved = 1 WHERE id = ?", (mid,))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/admin/managers/<int:mid>", methods=["DELETE"])
+def api_admin_manager_delete(mid):
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM branch_managers WHERE id = ?", (mid,))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 # ----------------- small fixes: remove duplicate endpoints & provide helpers -----------------
 

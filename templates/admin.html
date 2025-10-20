@@ -79,6 +79,11 @@
         <h3>🗺️ Route Optimization</h3>
         <p>Plan and optimize delivery routes</p>
       </div>
+
+      <div class="card" onclick="goToManagerRegistrations()">
+        <h3>👥 Manager Registrations</h3>
+        <p>Approve or remove manager accounts</p>
+      </div>
     </div>
 
     <!-- Auditor Management Section (Hidden by default) -->
@@ -228,6 +233,10 @@
 
     function goToBranchManagement() {
       window.location.href = '/admin/branches';
+    }
+
+    function goToManagerRegistrations() {
+      window.location.href = '/admin/managers';
     }
 
     // Initialize page
