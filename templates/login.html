@@ -2,56 +2,61 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Login</title>
+  <title>Login | The Muthoot Group</title>
   <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    .login-box { max-width: 400px; margin: 60px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
-    .login-box h2 { margin-top: 0; }
-    label { display:block; margin: 8px 0 4px; }
-    input, select { width: 100%; padding: 8px; }
-    button { margin-top: 12px; padding: 10px 16px; }
-    .error { color: #dc3545; margin-top: 10px; }
-  </style>
 </head>
 <body>
-  <div class="login-box">
-    <h2>Sign in</h2>
-    {% if error %}<div class="error">{{ error }}</div>{% endif %}
-    <form method="POST" action="/login">
-      <label for="username" id="username-label">Username</label>
-      <input id="username" name="username" required>
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" required>
-      <label for="role">Role</label>
-      <select id="role" name="role">
-        <option value="auditor">Auditor</option>
-        <option value="admin">Admin</option>
-        <option value="manager">Branch Manager</option>
-      </select>
-      <button type="submit">Login</button>
-    </form>
+  <div class="login-wrapper">
+
+    <!-- Logo Banner -->
+    <div class="banner">
+      <img src="/static/images/Logo.png" alt="The Muthoot Group Logo">
+    </div>
+
+    <!-- Login Box -->
+    <div class="login-box">
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      <form class="login-form" method="POST" action="/login">
+        <label for="username" id="username-label">Username</label>
+        <input id="username" name="username" type="text" required autocomplete="username">
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password">
+
+        <label for="role">Role</label>
+        <select id="role" name="role">
+          <option value="auditor">Auditor</option>
+          <option value="admin">Admin</option>
+          <option value="manager">Branch Manager</option>
+        </select>
+
+        <button type="submit">Login</button>
+      </form>
+    </div>
+
+    <!-- Register Link -->
+    <div class="register-link">
+      <a href="/register_manager">Register as Branch Manager</a>
+    </div>
   </div>
 
-   <div style="text-align:center; margin-top:10px;">
-    <a href="/register_manager">Register as Branch Manager</a>
-  </div>
-</body>
-<script>
-  (function() {
-    const roleSel = document.getElementById('role');
-    const userLabel = document.getElementById('username-label');
-    const userInput = document.getElementById('username');
-    function update() {
-      if (roleSel.value === 'manager') {
-        userLabel.textContent = 'Manager Name';
-        userInput.placeholder = 'Enter your registered name';
-      } else {
-        userLabel.textContent = 'Username';
-        userInput.placeholder = '';
+  <script>
+    (function() {
+      const roleSel = document.getElementById('role');
+      const userLabel = document.getElementById('username-label');
+      const userInput = document.getElementById('username');
+      function update() {
+        if (roleSel.value === 'manager') {
+          userLabel.textContent = 'Manager Name';
+          userInput.placeholder = 'Enter your registered name';
+        } else {
+          userLabel.textContent = 'Username';
+          userInput.placeholder = '';
+        }
       }
-    }
-    roleSel.addEventListener('change', update);
-    update();
-  })();
-</script>
+      roleSel.addEventListener('change', update);
+      update();
+    })();
+  </script>
+</body>
 </html>

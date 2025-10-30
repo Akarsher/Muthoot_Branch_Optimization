@@ -1238,11 +1238,17 @@ def show_map(day_id):
     return render_template("map.html")
 
 
-@app.route("/admin/branches", methods=["GET"])
-def admin_branches_page():
+@app.route("/admin/branches")
+def branch_management():
     if not require_role("admin"):
         return redirect(url_for("login"))
     return render_template("branch_management.html", user=current_user())
+
+@app.route("/admin/managers")
+def manager_registrations():
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("manager_registrations.html", user=current_user())
 
 
 # ---------------- Manager Registrations (Admin) ----------------
