@@ -1,7 +1,5 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session
-import sqlite3
-import os
-import time
+import sqlite3, os
 from werkzeug.utils import secure_filename
 from models.branch_model import create_tables
 from services.distance_service import get_distance_matrix
@@ -87,7 +85,9 @@ def require_role(*roles):
     return True
 
 def get_db():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def mark_branch_visited(branch_id):
@@ -1244,69 +1244,75 @@ def branch_management():
         return redirect(url_for("login"))
     return render_template("branch_management.html", user=current_user())
 
+# --- Manager registration routes (using branch_managers) ---
+
 @app.route("/admin/managers")
-def manager_registrations():
-    if not require_role("admin"):
-        return redirect(url_for("login"))
-    return render_template("manager_registrations.html", user=current_user())
-
-
-# ---------------- Manager Registrations (Admin) ----------------
-@app.route("/admin/managers", methods=["GET"])
-def admin_managers_page():
+def admin_managers():
     if not require_role("admin"):
         return redirect(url_for("login"))
     return render_template("admin_managers.html", user=current_user())
 
-
-@app.route("/api/admin/managers/pending", methods=["GET"])
-def api_admin_managers_pending():
+@app.route("/api/admin/managers/pending", endpoint="admin_managers_pending")
+def managers_pending():
     if not require_role("admin"):
         return jsonify({"success": False, "error": "Unauthorized"}), 401
     try:
-        ensure_branch_manager_columns()
         conn = get_db()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT m.id, m.name, m.contact_no, m.branch_id, m.approved, b.name, b.address FROM branch_managers m "
-            "LEFT JOIN branches b ON b.id = m.branch_id WHERE m.approved = 0 ORDER BY m.name"
-        )
-        rows = cur.fetchall()
+        cur.execute("""
+            SELECT bm.id, bm.name, bm.contact_no, bm.branch_id, COALESCE(bm.approved,0) AS approved,
+                   b.name AS branch_name, b.address AS branch_address
+            FROM branch_managers bm
+            LEFT JOIN branches b
+              ON b.id = bm.branch_id OR CAST(b.id AS TEXT) = bm.branch_id
+            WHERE COALESCE(bm.approved,0) = 0
+            ORDER BY bm.id DESC
+        """)
+        items = [{
+            "id": r["id"],
+            "name": r["name"],
+            "contact_no": r["contact_no"],
+            "branch_id": r["branch_id"],
+            "branch_name": r["branch_name"],
+            "branch_address": r["branch_address"],
+            "approved": int(r["approved"] or 0)
+        } for r in cur.fetchall()]
         conn.close()
-        items = [
-            {"id": r[0], "name": r[1], "contact_no": r[2], "branch_id": r[3], "approved": r[4], "branch_name": r[5], "branch_address": r[6]}
-            for r in rows
-        ]
         return jsonify({"success": True, "items": items})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
 
-
-@app.route("/api/admin/managers", methods=["GET"])
-def api_admin_managers_all():
+@app.route("/api/admin/managers", endpoint="admin_managers_all")
+def managers_all():
     if not require_role("admin"):
         return jsonify({"success": False, "error": "Unauthorized"}), 401
     try:
-        ensure_branch_manager_columns()
         conn = get_db()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT m.id, m.name, m.contact_no, m.branch_id, m.approved, b.name, b.address FROM branch_managers m "
-            "LEFT JOIN branches b ON b.id = m.branch_id ORDER BY m.approved DESC, m.name"
-        )
-        rows = cur.fetchall()
+        cur.execute("""
+            SELECT bm.id, bm.name, bm.contact_no, bm.branch_id, COALESCE(bm.approved,0) AS approved,
+                   b.name AS branch_name, b.address AS branch_address
+            FROM branch_managers bm
+            LEFT JOIN branches b
+              ON b.id = bm.branch_id OR CAST(b.id AS TEXT) = bm.branch_id
+            ORDER BY COALESCE(bm.approved,0) ASC, bm.id DESC
+        """)
+        items = [{
+            "id": r["id"],
+            "name": r["name"],
+            "contact_no": r["contact_no"],
+            "branch_id": r["branch_id"],
+            "branch_name": r["branch_name"],
+            "branch_address": r["branch_address"],
+            "approved": int(r["approved"] or 0)
+        } for r in cur.fetchall()]
         conn.close()
-        items = [
-            {"id": r[0], "name": r[1], "contact_no": r[2], "branch_id": r[3], "approved": r[4], "branch_name": r[5], "branch_address": r[6]}
-            for r in rows
-        ]
         return jsonify({"success": True, "items": items})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
 
-
-@app.route("/api/admin/managers/<int:mid>/approve", methods=["POST"])
-def api_admin_manager_approve(mid):
+@app.route("/api/admin/managers/<int:mid>/approve", methods=["POST"], endpoint="admin_manager_approve")
+def manager_approve(mid: int):
     if not require_role("admin"):
         return jsonify({"success": False, "error": "Unauthorized"}), 401
     try:
@@ -1317,11 +1323,10 @@ def api_admin_manager_approve(mid):
         conn.close()
         return jsonify({"success": True})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
 
-
-@app.route("/api/admin/managers/<int:mid>", methods=["DELETE"])
-def api_admin_manager_delete(mid):
+@app.route("/api/admin/managers/<int:mid>", methods=["DELETE"], endpoint="admin_manager_delete")
+def manager_delete(mid: int):
     if not require_role("admin"):
         return jsonify({"success": False, "error": "Unauthorized"}), 401
     try:
@@ -1332,7 +1337,12 @@ def api_admin_manager_delete(mid):
         conn.close()
         return jsonify({"success": True})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# Backward-compat for old link name
+@app.route("/admin/manager_registrations")
+def legacy_manager_registrations():
+    return redirect(url_for("admin_managers"))
 
 # ----------------- small fixes: remove duplicate endpoints & provide helpers -----------------
 

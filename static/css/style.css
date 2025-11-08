@@ -715,3 +715,42 @@ select:-internal-list-box {
 .stats-grid .stat-card:nth-child(4) .stat-value {
     color: #9b59b6;
 }
+
+/* Manager Registration Buttons */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-approve {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-approve:hover {
+    background: #218838;
+}
+
+.btn-remove {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-remove:hover {
+    background: #c82333;
+}
