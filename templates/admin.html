@@ -8,198 +8,156 @@
 <body>
   {% include "_admin_nav.html" %}
   <main class="admin-wrap">
-    <header class="admin-header">
-      <!-- changed: uppercase red welcome -->
-      <h2 class="hello welcome-text">WELCOME, {{ user.username }}</h2>
-    </header>
+    <h2 class="hello welcome-text">WELCOME, {{ user.username }}</h2>
 
-    <!-- Stats Card: three red cards -->
+    <!-- Stats Card -->
     <section class="card stats-card">
       <div class="stats-grid">
         <div class="stat-card">
+          <div class="stat-title">TOTAL AUDITORS</div>
+          <div class="stat-value" id="totalAuditors">0</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-title">ACTIVE ROUTES</div>
+          <div class="stat-value" id="activeRoutes">0</div>
+        </div>
+
+        <div class="stat-card">
           <div class="stat-title">TOTAL BRANCHES</div>
-          <div class="stat-value" id="totalVal">-</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-title">VISITED</div>
-          <div class="stat-value" id="visitedVal">-</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-title">REMAINING</div>
-          <div class="stat-value" id="remainingVal">-</div>
+          <div class="stat-value" id="totalBranches">0</div>
         </div>
       </div>
     </section>
 
-    <!-- Auditor area visible on landing -->
-    <section id="manage-auditors" class="auditor-area">
-      <div class="grid two-col">
-        <!-- Add Auditor Card -->
-        <div class="auditor-card">
-          <h3>Add Auditor</h3>
-          <div id="msg"></div>
-          <form onsubmit="event.preventDefault(); registerAuditor();">
-            <div class="auditor-form-group">
-              <label for="auser">Username</label>
-              <input 
-                  id="auser" 
-                  type="text" 
-                  required 
-                  placeholder="Enter username"
-              >
-            </div>
-            
-            <div class="auditor-form-group">
-              <label for="apass">Password</label>
-              <input 
-                  id="apass" 
-                  type="password" 
-                  required 
-                  placeholder="Enter password"
-              >
-            </div>
-            
-            <button type="submit" class="auditor-submit">Create Auditor</button>
-          </form>
-        </div>
+    <!-- Auditor Management -->
+    <section class="card">
+      <h3 style="color: #dc3545; margin-bottom: 20px;">Manage Auditors</h3>
+      
+      <div id="message"></div>
 
-        <!-- Existing Auditors Card -->
-        <div class="existing-auditors-card">
-          <h3>Existing Auditors</h3>
-          <div id="audMsg"></div>
-          <div class="table-wrap">
-            <table class="auditors-table">
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                    </tr>
-                </thead>
-                <tbody id="audTable"></tbody>
-            </table>
-          </div>
-        </div>
+      <div style="margin-bottom: 30px;">
+        <h4>Add New Auditor</h4>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="addAuditor()">Add Auditor</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="auditors-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="auditorsBody">
+            <tr><td colspan="4" style="text-align: center; padding: 20px;">Loading...</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </main>
 
   <script>
-    // Load statistics on page load
-    async function loadStats() {
-      try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed');
-        document.getElementById('totalVal').textContent = data.total_branches;
-        document.getElementById('visitedVal').textContent = data.visited_branches;
-        document.getElementById('remainingVal').textContent = data.unvisited_branches;
-      } catch (e) {
-        console.error('Stats load failed', e);
-      }
-    }
-
-    // Toggle visited branches list
-    async function toggleVisitedList() {
-      const listBox = document.getElementById('visitedList');
-      const isVisible = listBox.style.display === 'block';
-      if (isVisible) {
-        listBox.style.display = 'none';
-        return;
-      }
-      try {
-        const res = await fetch('/api/visited-branches');
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed');
-        const ul = document.getElementById('visitedItems');
-        ul.innerHTML = '';
-        if (data.items.length === 0) {
-          ul.innerHTML = '<li>No branches visited yet.</li>';
-        } else {
-          data.items.forEach(b => {
-            const li = document.createElement('li');
-            li.textContent = `${b.name}${b.address ? ' - ' + b.address : ''}`;
-            ul.appendChild(li);
-          });
-        }
-        listBox.style.display = 'block';
-      } catch (e) {
-        console.error('Visited list load failed', e);
-      }
-    }
-
-    // Register new auditor
-    async function registerAuditor() {
-      const username = document.getElementById('auser').value.trim();
-      const password = document.getElementById('apass').value;
-      const msg = document.getElementById('msg');
-      msg.textContent = '';
-
-      if (!username || !password) {
-        msg.className = 'error';
-        msg.textContent = 'Username and password are required';
-        return;
-      }
-
-      try {
-        const res = await fetch('/admin/register-auditor', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+    function loadAuditors() {
+      fetch('/api/auditors')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
+          }
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+            throw new TypeError("Expected JSON, got " + contentType);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to load');
+          }
+          const auditors = data.auditors || [];
+          document.getElementById('totalAuditors').textContent = auditors.length;
+          
+          const tbody = document.getElementById('auditorsBody');
+          if (!auditors.length) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;">No auditors found.</td></tr>';
+            return;
+          }
+          
+          tbody.innerHTML = auditors.map(a => `
+            <tr>
+              <td>${escapeHtml(a.username)}</td>
+              <td>${escapeHtml(a.role || 'auditor')}</td>
+              <td>${escapeHtml(a.created_at || 'N/A')}</td>
+              <td><button class="delete-btn" onclick="deleteAuditor(${a.id})">Delete</button></td>
+            </tr>
+          `).join('');
+        })
+        .catch(err => {
+          console.error('Error loading auditors:', err);
+          document.getElementById('auditorsBody').innerHTML = 
+            `<tr><td colspan="4" style="text-align:center;padding:20px;color:#dc3545;">Error: ${escapeHtml(err.message)}</td></tr>`;
         });
-        const data = await res.json();
-        if (data.success) {
-          msg.className = 'success';
-          msg.textContent = data.message;
-          document.getElementById('auser').value = '';
-          document.getElementById('apass').value = '';
-          loadAuditors();
-        } else {
-          msg.className = 'error';
-          msg.textContent = data.error || 'Failed';
-        }
-      } catch(err) {
-        msg.className = 'error';
-        msg.textContent = 'Error: ' + err.message;
-      }
     }
 
-    // Load auditors list
-    async function loadAuditors() {
-      const table = document.getElementById('audTable');
-      const audMsg = document.getElementById('audMsg');
-      table.innerHTML = '';
-      audMsg.textContent = '';
-      try {
-        const res = await fetch('/api/auditors');
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed');
-        if (data.items.length === 0) {
-            table.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No auditors found.</td></tr>';
-        } else {
-          data.items.forEach(a => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${a.username}</td>
-                <td><span class="status-${a.active ? 'active' : 'inactive'}">${a.active ? 'Active' : 'Inactive'}</span></td>
-                <td>${a.created_at || ''}</td>
-            `;
-            table.appendChild(tr);
-          });
-        }
-      } catch (e) {
-        audMsg.className = 'error';
-        audMsg.textContent = 'Failed to load auditors: ' + e.message;
+    function addAuditor() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+      if (!username || !password) {
+        alert('Username and password required');
+        return;
       }
+      fetch('/admin/add-auditor', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username, password})
+      })
+      .then(r => r.json())
+      .then(data => {
+        alert(data.message || data.error);
+        if (data.success) {
+          document.getElementById('username').value = '';
+          document.getElementById('password').value = '';
+          loadAuditors();
+        }
+      })
+      .catch(err => alert('Error: ' + err.message));
+    }
+
+    function deleteAuditor(id) {
+      if (!confirm('Delete this auditor?')) return;
+      fetch(`/admin/delete-auditor/${id}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+          alert(data.message || data.error);
+          if (data.success) loadAuditors();
+        })
+        .catch(err => alert('Error: ' + err.message));
+    }
+
+    function loadBranches() {
+      fetch('/api/branches')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.branches) {
+            document.getElementById('totalBranches').textContent = data.branches.length;
+          }
+        })
+        .catch(err => console.error('Error loading branches:', err));
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = String(text || '');
+      return div.innerHTML;
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      loadStats();
       loadAuditors();
-      const visitedCard = document.getElementById('visitedCard');
-      if (visitedCard) visitedCard.addEventListener('click', toggleVisitedList);
+      loadBranches();
     });
   </script>
 </body>

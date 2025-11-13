@@ -1,16 +1,19 @@
 <nav class="admin-navbar">
-    <div class="admin-navbar-inner">
-        <div class="admin-brand">
-            <a href="/admin">
-                <img src="{{ url_for('static', filename='images/Logo2.png') }}" alt="Logo" class="admin-logo">
-            </a>
-        </div>
-        <div class="admin-nav-links">
-            <a href="/admin">Manage Auditors</a>
-            <a href="/admin/branches">Branch Management</a>
-            <a href="/admin/managers">Manage Registration</a>
-            <a href="/">Route Optimization</a>
-            <a href="/logout">Logout</a>
-        </div>
+  <div class="admin-navbar-inner">
+    <div class="admin-brand">
+      <a href="{{ url_for('admin_dashboard') }}">
+        <img src="{{ url_for('static', filename='images/Logo2.png') }}" alt="Logo" class="admin-logo">
+      </a>
     </div>
+    <div class="admin-nav-links">
+      <a href="{{ url_for('admin_dashboard') }}">Manage Auditors</a>
+      <a href="{{ url_for('branch_management') }}">Branch Management</a>
+      <a href="{{ url_for('admin_managers') }}">Manage Registration</a>
+      <a href="{{ url_for('route_optimization') }}">Route Optimization</a>
+      <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+    {% if session.get('user') %}
+      <div class="admin-user">Signed in as {{ session.get('user') }}</div>
+    {% endif %}
+  </div>
 </nav>

@@ -48,9 +48,9 @@ body {
   border: 2px solid #E41E26;
   border-radius: 10px;
   background-color: #fff;
-  box-shadow: 0 0 15px rgba(228, 30, 38, 0.3);
+  box-shadow: 0 6px 18px rgba(228, 30, 38, 0.18); /* slightly stronger lift */
   text-align: center;
-  margin-top: 10px; /* reduced space between logo and form */
+  margin-top: 4px; /* reduce gap further (was 6px) */
 }
 
 /* Heading */
@@ -753,4 +753,592 @@ select:-internal-list-box {
 
 .btn-remove:hover {
     background: #c82333;
+}
+
+/* ==================== Route Optimization Page Styles ==================== */
+
+.status-box {
+  background: #f0f8ff;
+  border: 1px solid #add8e6;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 5px;
+}
+
+/* Planning Controls - 4 buttons in a row */
+.controls {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.controls button {
+  flex: 1;
+  min-width: 200px;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.controls button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.controls button:active {
+  transform: translateY(0);
+}
+
+.controls button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Individual button colors - Different shades of red */
+.btn-primary {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, #d62c1a 0%, #a93226 100%);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #E41E26 0%, #b71c1c 100%);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #c81b21 0%, #9b1515 100%);
+}
+
+.btn-info {
+  background: linear-gradient(135deg, #28a745 0%, #20923d 100%);
+  color: white;
+}
+
+.btn-info:hover {
+  background: linear-gradient(135deg, #20923d 0%, #1e7e34 100%);
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 1024px) {
+  .controls {
+    flex-direction: column;
+  }
+  
+  .controls button {
+    width: 100%;
+    min-width: auto;
+  }
+}
+
+@media (min-width: 1025px) {
+  .controls button {
+    flex: 1 1 calc(25% - 12px);
+  }
+}
+
+.branch-confirmation {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 5px;
+}
+
+.branches-horizontal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.branch-checkbox {
+  display: flex;
+  align-items: center;
+  background: #e8f5e8;
+  border: 1px solid #28a745;
+  padding: 8px 12px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.branch-checkbox input {
+  margin-right: 8px;
+}
+
+.confirm-button {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+  margin-right: 10px;
+}
+
+.confirm-button:hover {
+  background: #218838;
+}
+
+.confirm-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.save-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+  margin-right: 10px;
+}
+
+.save-button:hover {
+  background: #0056b3;
+}
+
+.submit-button {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+  margin-right: 10px;
+}
+
+.submit-button:hover {
+  background: #c82333;
+}
+
+.status-message {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  font-weight: bold;
+}
+
+.success { 
+  color: #28a745; 
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+}
+
+.error { 
+  color: #dc3545;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+}
+
+.info { 
+  color: #17a2b8;
+  background: #d1ecf1;
+  border: 1px solid #bee5eb;
+}
+
+.user-nav {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.user-nav .save-button {
+  margin-left: auto;
+  margin-top: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f5f5f5;
+}
+
+.content-wrapper {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Status Section - Red Theme */
+.status-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  margin-bottom: 20px;
+}
+
+.status-section h2 {
+  margin-top: 0;
+  color: #E41E26;
+  font-size: 20px;
+  margin-bottom: 15px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.status-item {
+  background: linear-gradient(135deg, #E41E26 0%, #b71c1c 100%);
+  padding: 15px;
+  border-radius: 8px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.status-value {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+/* Route Display */
+.route-display {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  margin-bottom: 20px;
+  min-height: 50px;
+}
+
+/* ==================== Login Page Styles ==================== */
+
+.login-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+  padding: 20px;
+}
+
+/* Logo Banner */
+.banner {
+  text-align: center;
+  margin-bottom: 6px; /* decreased from 20px -> closer to card */
+}
+
+.banner img {
+  height: 120px; /* slightly smaller so card sits closer */
+  padding: 8px 0;
+}
+
+/* Login Box */
+.login-box {
+  width: 100%;
+  max-width: 380px;
+  padding: 20px;
+  border: 2px solid #E41E26;
+  border-radius: 10px;
+  background-color: #fff;
+  box-shadow: 0 6px 18px rgba(228, 30, 38, 0.18); /* slightly stronger lift */
+  text-align: center;
+  margin-top: 4px; /* reduce gap further (was 6px) */
+}
+
+/* Heading */
+.login-box h2 {
+  margin-top: 0;
+  color: #E41E26;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+/* Form Layout */
+form.login-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Label and Input Styling */
+.login-form label {
+  display: block;
+  margin: 8px 0 4px;
+  text-align: left;
+  color: #333;
+  font-weight: bold;
+}
+
+.login-form input,
+.login-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.login-form input:focus,
+.login-form select:focus {
+  border-color: #E41E26;
+  outline: none;
+  box-shadow: 0 0 4px rgba(228, 30, 38, 0.5);
+}
+
+/* Button Styling */
+.login-form button[type="submit"] {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #dc3545;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.login-form button[type="submit"]:hover {
+  background: #c82333;
+}
+
+.login-form button[type="submit"]:active {
+  background: #bd2130;
+}
+
+.login-form button[type="submit"]:focus {
+  outline: none;
+  box-shadow: 0 6px 18px rgba(220, 53, 69, 0.12);
+}
+
+/* Error Message */
+.login-box .error {
+  color: #dc3545;
+  margin-bottom: 15px;
+  background-color: #fff0f0;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #f5c6cb;
+}
+
+/* Register Link */
+.register-link {
+  text-align: center;
+  margin-top: 15px;
+}
+
+.register-link a {
+  color: #E41E26;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.register-link a:hover {
+  text-decoration: underline;
+}
+
+/* Dropdown styling */
+.login-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #E41E26;
+  border-radius: 6px;
+  background-color: #fff;
+  font-size: 14px;
+  color: #222;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=UTF-8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12'><polygon points='0,0 12,0 6,8' fill='%23E41E26'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  box-sizing: border-box;
+}
+
+.login-form select:focus {
+  outline: none;
+  border-color: #E41E26;
+  box-shadow: 0 0 6px rgba(228, 30, 38, 0.3);
+}
+
+.login-form select option {
+  color: #222;
+  background: #fff;
+}
+
+/* ==================== Map Page Styles ==================== */
+
+.map-container {
+    display: flex;
+    height: 100vh;
+}
+
+.map-container .sidebar {
+    width: 350px;
+    background: white;
+    padding: 20px;
+    overflow-y: auto;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+}
+
+.map-container .sidebar h2 {
+    color: #E41E26;
+    margin-top: 0;
+}
+
+.map-container .route-info {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.map-container .route-info p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.map-container .route-info strong {
+    color: #E41E26;
+}
+
+.stops-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.stops-list li {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stops-list li:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.stop-content {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+}
+
+.stop-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    background: #E41E26;
+    color: white;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.stop-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stop-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    line-height: 1.5;
+}
+
+.stop-address {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.6;
+    margin-top: 4px;
+}
+
+.stop-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.start-badge {
+    background: #28a745;
+    color: white;
+}
+
+.end-badge {
+    background: #dc3545;
+    color: white;
+}
+
+.start-point {
+    border-left: 4px solid #28a745;
+}
+
+.start-point .stop-number {
+    background: #28a745;
+}
+
+.end-point {
+    border-left: 4px solid #dc3545;
+}
+
+.end-point .stop-number {
+    background: #dc3545;
 }

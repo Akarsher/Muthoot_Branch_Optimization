@@ -2,167 +2,63 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Branch Route Planner</title>
-  <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    .status-box {
-      background: #f0f8ff;
-      border: 1px solid #add8e6;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 5px;
-    }
-    .button-group {
-      margin: 10px 0;
-    }
-    .button-group button {
-      margin-right: 10px;
-      padding: 10px 20px;
-      font-size: 14px;
-    }
-    .branch-confirmation {
-      background: #fff3cd;
-      border: 1px solid #ffeaa7;
-      padding: 15px;
-      margin: 10px 0;
-      border-radius: 5px;
-    }
-    .branches-horizontal {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin: 10px 0;
-    }
-    .branch-checkbox {
-      display: flex;
-      align-items: center;
-      background: #e8f5e8;
-      border: 1px solid #28a745;
-      padding: 8px 12px;
-      border-radius: 5px;
-      white-space: nowrap;
-    }
-    .branch-checkbox input {
-      margin-right: 8px;
-    }
-    .confirm-button {
-      background: #28a745;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 14px;
-      margin-top: 10px;
-      margin-right: 10px;
-    }
-    .confirm-button:hover {
-      background: #218838;
-    }
-    .confirm-button:disabled {
-      background: #6c757d;
-      cursor: not-allowed;
-    }
-    .save-button {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 14px;
-      margin-top: 10px;
-      margin-right: 10px;
-    }
-    .save-button:hover {
-      background: #0056b3;
-    }
-    .submit-button {
-      background: #dc3545;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 14px;
-      margin-top: 10px;
-      margin-right: 10px;
-    }
-    .submit-button:hover {
-      background: #c82333;
-    }
-    .status-message {
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 5px;
-      font-weight: bold;
-    }
-    .success { 
-      color: #28a745; 
-      background: #d4edda;
-      border: 1px solid #c3e6cb;
-    }
-    .error { 
-      color: #dc3545;
-      background: #f8d7da;
-      border: 1px solid #f5c6cb;
-    }
-    .info { 
-      color: #17a2b8;
-      background: #d1ecf1;
-      border: 1px solid #bee5eb;
-    }
-    .success { color: #28a745; }
-    .error { color: #dc3545; }
-    .info { color: #17a2b8; }
-.user-nav {
-  display: flex;
-  align-items: center; /* Vertically centers all items */
-  gap: 15px; /* Adds nice spacing between the left-side items */
-  margin-bottom: 10px; /* Adds some space below the bar */
-}
-.user-nav .save-button {
-      margin-left: auto; /* This is the magic! Pushes the button to the right */
-      margin-top: 0; /* Overrides the default 10px top margin */
-    }
-    .save-button{
-      text-decoration: none;
-    }
-  </style>
+  <title>Route Optimization - Branch Planner</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <h1>Branch Route Planner</h1>
-  <div class="user-nav">
-    {% if user %}
-      <span>Logged in as <strong>{{ user.username }}</strong> ({{ user.role }})</span>
-       <a href="/logout">Logout</a>
-      {% if user.role == 'admin' %}  <a href="/admin">Admin</a>{% endif %}
-      {% if user.role == 'auditor' %}
-       <!-- Auditor-only profile button -->
-         <a class="save-button" href="{{ url_for('auditor_profile') }}">View Profile</a>
-    {% endif %}
-    {% else %}
-      <a href="/login">Login</a>
-    {% endif %}
-  </div>
+  <!-- Include Admin Navbar -->
+  {% include '_admin_nav.html' %}
   
-  <div class="status-box" id="status">
-    <p>Loading status...</p>
-  </div>
+  <!-- Main Content Wrapper -->
+  <div class="content-wrapper">
+    <!-- Branch Status Section -->
+    <div class="status-section">
+      <h2>📊 Branch Status</h2>
+      <div class="status-grid">
+        <div class="status-item">
+          <span class="status-label">Total Branches</span>
+          <span id="totalBranches" class="status-value">-</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">Visited</span>
+          <span id="visitedBranches" class="status-value">-</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">Remaining</span>
+          <span id="remainingBranches" class="status-value">-</span>
+        </div>
+      </div>
+    </div>
 
-  <div class="button-group">
-    <button id="planSingleBtn">Plan Next Day</button>
-    <button id="planMultiBtn">Plan All Days</button>
-    <button id="resetBtn">Reset All Branches</button>
-    <button id="statusBtn" style="background: #17a2b8; color: white;">🔄 Refresh & Restore Last Route</button>
-  </div>
+    <!-- Planning Controls - 4 Buttons in a Row -->
+    <div class="controls">
+      <button id="planSingleBtn" class="btn btn-primary">📍 Plan Next Day</button>
+      <button id="planMultiBtn" class="btn btn-secondary">📅 Plan All Days</button>
+      <button id="resetBtn" class="btn btn-danger">🔄 Reset All Branches</button>
+      <button id="restoreBtn" class="btn btn-info">💾 Restore Last Route</button>
+    </div>
 
-  <div id="output"></div>
+    <!-- Route Display -->
+    <div id="routeDisplay" class="route-display"></div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+  </div>
 
   <script>
+    // injected API base from Flask (.env). Leave empty for same origin.
+    const API_BASE = "{{ api_base | default('') }}";
+
+    function apiFetch(path, options) {
+      // ensure no double slash: API_BASE should NOT end with a slash, path should start with '/'
+      const base = API_BASE ? API_BASE.replace(/\/$/, '') : '';
+      const url = base + path;
+      return fetch(url, options);
+    }
+    
     async function saveVisits(branchIds, dayNumber) {
       try {
-        const response = await fetch("/api/save-visits", {
+        const response = await apiFetch("/api/save-visits", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -175,7 +71,6 @@
         if (data.success) {
           showStatusMessage(`confirm-day-${dayNumber}`, data.message, 'success');
           updateStatus();
-          // Update the checkbox states to reflect saved visits
           await refreshBranchStates(dayNumber);
           return true;
         } else {
@@ -187,10 +82,10 @@
         return false;
       }
     }
-
+    
     async function submitVisits(branchIds, dayBranchIds, dayNumber) {
       try {
-        const response = await fetch("/api/submit-visits", {
+        const response = await apiFetch("/api/submit-visits", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -203,7 +98,6 @@
         const data = await response.json();
         
         if (data.success) {
-          // Always close the confirmation section when submit is pressed
           const confirmDiv = document.getElementById(`confirm-day-${dayNumber}`);
           if (confirmDiv) {
             confirmDiv.innerHTML = `<div class="status-message success">✅ Day ${dayNumber} submitted and closed!</div>`;
@@ -232,7 +126,6 @@
         statusDiv.className = `status-message ${type}`;
         statusDiv.textContent = message;
         
-        // Auto-hide success messages after 3 seconds
         if (type === 'success') {
           setTimeout(() => {
             if (statusDiv && statusDiv.parentNode) {
@@ -244,7 +137,6 @@
     }
 
     async function refreshBranchStates(dayNumber) {
-      // Get current branch states from the server and update checkboxes
       try {
         const branches = await getCurrentBranchStates();
         const checkboxes = document.querySelectorAll(`#confirm-day-${dayNumber} input[type="checkbox"]`);
@@ -253,8 +145,8 @@
           const branchId = parseInt(checkbox.value);
           const branch = branches.find(b => b.id === branchId);
           if (branch && branch.visited === 1) {
-            checkbox.checked = false; // Uncheck visited branches
-            checkbox.parentElement.style.opacity = '0.6'; // Dim visited branches
+            checkbox.checked = false;
+            checkbox.parentElement.style.opacity = '0.6';
           }
         });
       } catch (error) {
@@ -263,7 +155,7 @@
     }
 
     async function getCurrentBranchStates() {
-      const response = await fetch('/api/branches');
+      const response = await apiFetch('/api/branches');
       if (!response.ok) {
         throw new Error('Failed to fetch branch states');
       }
@@ -328,37 +220,29 @@
 
     async function updateStatus() {
       try {
-        const res = await fetch("/api/status");
+        const res = await apiFetch("/api/status");
         const data = await res.json();
-        const statusDiv = document.getElementById("status");
         
         if (data.success) {
-          statusDiv.innerHTML = `
-            <h3>Branch Status</h3>
-            <p>Total Branches: ${data.total_branches}</p>
-            <p>Visited: ${data.visited_branches}</p>
-            <p>Remaining: ${data.unvisited_branches}</p>
-            ${data.all_completed ? '<p class="success">✅ All branches completed!</p>' : '<p class="info">📍 More branches to visit</p>'}
-          `;
-        } else {
-          statusDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
+          document.getElementById('totalBranches').textContent = data.total_branches;
+          document.getElementById('visitedBranches').textContent = data.visited_branches;
+          document.getElementById('remainingBranches').textContent = data.unvisited_branches;
         }
       } catch (error) {
-        document.getElementById("status").innerHTML = `<p class="error">Status check failed: ${error.message}</p>`;
+        console.error('Failed to update status:', error);
       }
     }
 
     async function restoreLastRoute() {
       try {
-        const res = await fetch("/api/last-route");
+        const res = await apiFetch("/api/last-route");
         const data = await res.json();
         
         if (data.success && data.route_data) {
           const routeData = data.route_data;
-          const output = document.getElementById("output");
+          const output = document.getElementById("routeDisplay");
           
           if (routeData.type === "single_day") {
-            // Restore single day route
             const route = routeData.day_route;
             let html = `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
             html += `<h3>Last Planned Route - Day ${route.day} - ${route.distance_km} km</h3>`;
@@ -369,11 +253,7 @@
             html += "</ol>";
             html += `<a href="/map/day/1" target="_blank">View Map</a>`;
             html += `</div>`;
-            
-            // Add branch confirmation section
             html += createBranchConfirmation(route.visited_branches, route.day);
-            
-            // Refresh branch states after creating the confirmation section
             setTimeout(() => refreshBranchStates(route.day), 100);
             
             if (routeData.has_more_branches) {
@@ -384,7 +264,6 @@
             output.innerHTML = html;
             
           } else if (routeData.type === "multi_day") {
-            // Restore multi-day routes
             let html = "";
             routeData.days.forEach((d, idx) => {
               html += `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
@@ -395,13 +274,10 @@
               html += "</ol>";
               html += `<a href="/map/day/${idx+1}" target="_blank">View Map for Day ${idx+1}</a>`;
               html += `</div>`;
-              
-              // Add branch confirmation section for each day
               html += createBranchConfirmation(d.visited_branches, idx + 1);
             });
             output.innerHTML = html;
             
-            // Refresh branch states for all days after creating the confirmation sections
             setTimeout(() => {
               routeData.days.forEach((d, idx) => {
                 refreshBranchStates(idx + 1);
@@ -425,9 +301,9 @@
       btn.textContent = "Planning...";
       
       try {
-        const res = await fetch("/api/plan", { method: "POST" });
+        const res = await apiFetch("/api/plan", { method: "POST" });
         const data = await res.json();
-        const out = document.getElementById("output");
+        const out = document.getElementById("routeDisplay");
         
         if (data.error) {
           if (data.all_completed) {
@@ -449,8 +325,6 @@
           html += "</ol>";
           html += `<a href="/map/day/1" target="_blank">View Map</a>`;
           html += `</div>`;
-          
-          // Add branch confirmation section
           html += createBranchConfirmation(route.visited_branches, 1);
           
           if (data.has_more_branches) {
@@ -461,24 +335,56 @@
           out.innerHTML = html;
         }
       } catch (error) {
-        document.getElementById("output").innerHTML = `<p class='error'>Planning failed: ${error.message}</p>`;
+        document.getElementById("routeDisplay").innerHTML = `<p class='error'>Planning failed: ${error.message}</p>`;
       } finally {
         btn.disabled = false;
-        btn.textContent = "Plan Next Day";
+        btn.textContent = "📍 Plan Next Day";
         updateStatus();
       }
     });
+
+    // helper to safely show raw server text in the page
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
 
     document.getElementById("planMultiBtn").addEventListener("click", async () => {
       const btn = document.getElementById("planMultiBtn");
       btn.disabled = true;
       btn.textContent = "Planning All Days...";
-      
+      const out = document.getElementById("routeDisplay");
+
       try {
-        const res = await fetch("/api/plan-multi", { method: "POST" });
-        const data = await res.json();
-        const out = document.getElementById("output");
-        
+        const res = await apiFetch("/api/plan-multi", { method: "POST" });
+
+        const contentType = res.headers.get('content-type') || '';
+        const text = await res.text(); // always read as text
+
+        // If non-OK status, show full response for debugging
+        if (!res.ok) {
+          console.error('/api/plan-multi response not OK', res.status, res.statusText);
+          console.error('Response body:', text);
+          out.innerHTML = `<div class="error">Planning failed: server returned ${res.status} ${res.statusText}.<br><details style="margin-top:8px"><summary>Response body (click to expand)</summary><pre style="white-space:pre-wrap;margin:8px 0">${escapeHtml(text)}</pre></details></div>`;
+          return;
+        }
+
+        // Try parse JSON, if fails show raw response (likely HTML error page)
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          console.error("Failed to parse JSON from /api/plan-multi:", parseErr);
+          console.error("Response text:", text);
+          out.innerHTML = `<div class="error">Planning failed: server returned non-JSON response. See details below.<br><details style="margin-top:8px"><summary>Response (click to expand)</summary><pre style="white-space:pre-wrap;margin:8px 0">${escapeHtml(text)}</pre></details></div>`;
+          return;
+        }
+
+        // existing success handling
         if (data.error) {
           out.innerHTML = "<p class='error'>" + data.error + "</p>";
           return;
@@ -494,29 +400,31 @@
           html += "</ol>";
           html += `<a href="/map/day/${idx+1}" target="_blank">View Map for Day ${idx+1}</a>`;
           html += `</div>`;
-          
-          // Add branch confirmation section for each day
           html += createBranchConfirmation(d.visited_branches, idx + 1);
         });
         out.innerHTML = html;
+
       } catch (error) {
-        document.getElementById("output").innerHTML = `<p class='error'>Planning failed: ${error.message}</p>`;
+        console.error("Fetch error /api/plan-multi:", error);
+        out.innerHTML = `<p class='error'>Planning failed: ${escapeHtml(error.message)}</p>`;
       } finally {
         btn.disabled = false;
-        btn.textContent = "Plan All Days";
+        btn.textContent = "📅 Plan All Days";
         updateStatus();
       }
     });
 
     document.getElementById("resetBtn").addEventListener("click", async () => {
+      if (!confirm('Are you sure you want to reset all branches to unvisited?')) return;
+      
       const btn = document.getElementById("resetBtn");
       btn.disabled = true;
       btn.textContent = "Resetting...";
       
       try {
-        const res = await fetch("/api/reset", { method: "POST" });
+        const res = await apiFetch("/api/reset", { method: "POST" });
         const data = await res.json();
-        const out = document.getElementById("output");
+        const out = document.getElementById("routeDisplay");
         
         if (data.success) {
           out.innerHTML = "<p class='success'>✅ All branches reset to unvisited</p>";
@@ -524,21 +432,50 @@
           out.innerHTML = "<p class='error'>" + data.error + "</p>";
         }
       } catch (error) {
-        document.getElementById("output").innerHTML = `<p class='error'>Reset failed: ${error.message}</p>`;
+        document.getElementById("routeDisplay").innerHTML = `<p class='error'>Reset failed: ${error.message}</p>`;
       } finally {
         btn.disabled = false;
-        btn.textContent = "Reset All Branches";
+        btn.textContent = "🔄 Reset All Branches";
         updateStatus();
       }
     });
 
-    document.getElementById("statusBtn").addEventListener("click", async () => {
-      await updateStatus();
-      await restoreLastRoute();
+    document.getElementById("restoreBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("restoreBtn");
+      btn.disabled = true;
+      btn.textContent = "Restoring...";
+      
+      try {
+        await restoreLastRoute();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "💾 Restore Last Route";
+      }
     });
 
-    // Load status on page load
-    updateStatus();
+    // Initialize on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      updateStatus();
+      restoreLastRoute();
+    });
+  </script>
+  
+  <script>
+    let googleMapsApiKey = "{{ api_key }}";
+    
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          googleMapsApiKey = data.googleMapsApiKey;
+          loadGoogleMaps();
+        }
+      });
+      
+    function loadGoogleMaps() {
+      // Initialize Google Maps here
+      console.log('Google Maps API Key loaded:', googleMapsApiKey);
+    }
   </script>
 </body>
 </html>
