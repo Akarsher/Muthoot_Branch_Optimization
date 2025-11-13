@@ -204,7 +204,26 @@ def admin_managers():
         return redirect(url_for('login'))
     if session.get('role') != 'admin':
         return redirect(url_for('route_optimization'))
-    return render_template('admin_managers.html')
+
+    # If the client expects JSON (AJAX/fetch), return JSON list of managers
+    accept = request.headers.get('Accept', '')
+    if 'application/json' in accept or request.args.get('format') == 'json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT id, name, contact_no, branch_id, created_at, username, approved FROM branch_managers ORDER BY id")
+            rows = cur.fetchall()
+            conn.close()
+            managers = [dict(r) for r in rows]
+            # normalize approved to int
+            for m in managers:
+                m['approved'] = int(m.get('approved') or 0)
+            return jsonify({'success': True, 'managers': managers})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Normal page render for browser navigation
+    return render_template('admin_managers.html', user=session.get('user'))
 
 # ensure route_optimization exists
 @app.route('/route-optimization')
@@ -524,6 +543,91 @@ def admin_delete_auditor(auditor_id):
         if affected:
             return jsonify({'success': True, 'message': 'Auditor deleted'})
         return jsonify({'success': False, 'error': 'Auditor not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/managers', methods=['GET'])
+def api_admin_managers():
+    """Return all branch manager registrations (JSON)"""
+    if 'user' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT bm.id, bm.name, bm.contact_no, bm.branch_id, bm.created_at, bm.username,
+                   bm.approved, b.name AS branch_name, b.address AS branch_address
+            FROM branch_managers bm
+            LEFT JOIN branches b ON bm.branch_id = b.id
+            ORDER BY bm.id
+        """)
+        rows = cur.fetchall()
+        conn.close()
+        items = [dict(r) for r in rows]
+        for m in items:
+            m['approved'] = int(m.get('approved') or 0)
+        return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/managers/pending', methods=['GET'])
+def api_admin_managers_pending():
+    """Return pending (unapproved) branch manager registrations"""
+    if 'user' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT bm.id, bm.name, bm.contact_no, bm.branch_id, bm.created_at, bm.username,
+                   bm.approved, b.name AS branch_name, b.address AS branch_address
+            FROM branch_managers bm
+            LEFT JOIN branches b ON bm.branch_id = b.id
+            WHERE bm.approved = 0 OR bm.approved IS NULL
+            ORDER BY bm.id
+        """)
+        rows = cur.fetchall()
+        conn.close()
+        items = [dict(r) for r in rows]
+        for m in items:
+            m['approved'] = int(m.get('approved') or 0)
+        return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/managers/<int:manager_id>/approve', methods=['POST'])
+def api_admin_managers_approve(manager_id):
+    """Approve a pending branch manager"""
+    if 'user' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE branch_managers SET approved = 1 WHERE id = ?", (manager_id,))
+        conn.commit()
+        affected = cur.rowcount
+        conn.close()
+        if affected:
+            return jsonify({'success': True, 'message': 'Manager approved'})
+        return jsonify({'success': False, 'error': 'Manager not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/managers/<int:manager_id>', methods=['DELETE'])
+def api_admin_managers_delete(manager_id):
+    """Delete a branch manager registration"""
+    if 'user' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM branch_managers WHERE id = ?", (manager_id,))
+        conn.commit()
+        affected = cur.rowcount
+        conn.close()
+        if affected:
+            return jsonify({'success': True, 'message': 'Manager removed'})
+        return jsonify({'success': False, 'error': 'Manager not found'}), 404
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
