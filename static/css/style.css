@@ -864,27 +864,78 @@ select:-internal-list-box {
   border-radius: 5px;
 }
 
+.branch-confirmation h4 {
+  margin-bottom: 12px; /* space between title and content */
+}
+
+/* Ensure action buttons are on one row and aligned */
+.branch-confirmation .branch-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start; /* change to flex-end to right-align */
+  margin-top: 12px;
+  flex-wrap: nowrap; /* keep them on one line; will scroll on overflow */
+}
+
+/* Remove extra top margins so buttons sit level */
+.branch-confirmation .save-button,
+.branch-confirmation .submit-button,
+.branch-confirmation .confirm-button {
+  margin-top: 0;
+  margin-right: 0;
+  padding: 10px 16px;
+  white-space: nowrap;
+}
+
+/* Responsive fallback: stack when not enough width */
+@media (max-width: 420px) {
+  .branch-confirmation .branch-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .branch-confirmation .save-button,
+  .branch-confirmation .submit-button,
+  .branch-confirmation .confirm-button {
+    width: 100%;
+  }
+}
+
 .branches-horizontal {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin: 10px 0;
 }
 
 .branch-checkbox {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  background: #e8f5e8;
-  border: 1px solid #28a745;
+  gap: 8px;
   padding: 8px 12px;
-  border-radius: 5px;
-  white-space: nowrap;
+  background: #fbfff9;                 /* very light green background for clarity */
+  border-left: 4px solid #c8e6c9;     /* light green border */
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.02);
 }
 
-.branch-checkbox input {
-  margin-right: 8px;
+.branch-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 auto;
+  vertical-align: middle;
 }
 
+.branch-checkbox label {
+  margin: 0;
+  line-height: 1.2;
+  flex: 1 1 auto;
+  word-break: break-word;
+  color: #1f2937; /* dark text for contrast */
+}
+
+/* Confirm and Save buttons in branch management */
 .confirm-button {
   background: #28a745;
   color: white;
@@ -1341,4 +1392,19 @@ form.login-form {
 
 .end-point .stop-number {
     background: #dc3545;
+}
+
+/* Increase space between card border and ordered list numbers */
+.route-display ol,
+.route-card ol {
+  list-style-position: outside; /* keep numbers outside the text block */
+  padding-left: 2.6em;          /* space between left border and the numbers (increase if needed) */
+  margin: 0 0 10px 0;
+}
+
+/* Optional: keep list items content indented a bit from the numbers */
+.route-display li,
+.route-card li {
+  padding-left: 0.5em;
+  box-sizing: border-box;
 }

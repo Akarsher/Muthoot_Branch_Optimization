@@ -180,7 +180,8 @@
       });
       
       html += `</div>`;
-      html += `<div>`;
+      // Wrap action buttons in .branch-actions so CSS can align them side-by-side
+      html += `<div class="branch-actions">`;
       html += `<button class="save-button" onclick="handleSaveDay(${dayNumber})">
         💾 Save Selected Visits
       </button>`;
