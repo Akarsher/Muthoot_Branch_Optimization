@@ -1,295 +1,79 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Route Map - Day {{ day_number }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <meta charset="utf-8">
+  <title>Planned Route Map</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+  <style>
+    html,body,#map { height:100%; margin:0; padding:0; }
+    #map { width:100%; height:100vh; }
+    .map-overlay {
+      position: fixed; left:12px; top:12px; z-index:1000;
+      background:#fff; padding:8px 10px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15);
+    }
+    .map-warning { color:#c82333; font-weight:600; }
+  </style>
 </head>
 <body>
-    <div class="map-container">
-        <div class="sidebar">
-            <a href="{{ url_for('index') }}" class="back-button">← Back to Planning</a>
-            
-            <h2>📍 Day {{ day_number }} Route</h2>
-            
-            <div class="route-info">
-                <p><strong>Total Distance:</strong> {{ route_data.distance_km }} km</p>
-                <p><strong>Branches to Visit:</strong> {{ route_data.branches_visited }}</p>
-                <p><strong>Total Stops:</strong> {{ stops|length }}</p>
-            </div>
-            
-            <h3>Route Sequence</h3>
-            <ol class="stops-list">
-                {% for stop in stops %}
-                <li class="{% if loop.first %}start-point{% elif loop.last %}end-point{% endif %}">
-                    <div class="stop-content">
-                        <span class="stop-number">{{ loop.index }}</span>
-                        <div class="stop-details">
-                            <span class="stop-name">
-                                {{ stop.name }}
-                                {% if loop.first %}
-                                <span class="stop-badge start-badge">START</span>
-                                {% elif loop.last %}
-                                <span class="stop-badge end-badge">END</span>
-                                {% endif %}
-                            </span>
-                            <span class="stop-address">{{ stop.address }}</span>
-                        </div>
-                    </div>
-                </li>
-                {% endfor %}
-            </ol>
-        </div>
-        
-        <div id="map"></div>
-    </div>
+  <div class="map-overlay">
+    <a href="{{ url_for('route_optimization') }}">← Back to Planning</a>
+    <div id="map-info" style="margin-top:6px;"></div>
+  </div>
 
-    <script>
-        let map;
-        let directionsService;
-        let directionsRenderer;
-        let markers = [];
-        let geocoder;
-        
-        const stops = {{ stops | tojson | safe }};
-        const apiKey = "{{ api_key }}";
-        
-        console.log('=== STOPS DATA ===');
-        console.log('Total stops:', stops.length);
-        stops.forEach((stop, index) => {
-            console.log(`Stop ${index + 1}:`, stop.name, '-', stop.address);
-        });
-        
-        function initMap() {
-            const defaultCenter = { lat: 10.0842, lng: 76.2971 };
-            
-            map = new google.maps.Map(document.getElementById('map'), {
-                zoom: 10,
-                center: defaultCenter,
-                mapTypeId: 'roadmap',
-                mapTypeControl: true,
-                streetViewControl: true,
-                fullscreenControl: true
-            });
-            
-            geocoder = new google.maps.Geocoder();
-            
-            directionsService = new google.maps.DirectionsService();
-            directionsRenderer = new google.maps.DirectionsRenderer({
-                map: map,
-                suppressMarkers: true,
-                polylineOptions: {
-                    strokeColor: '#E41E26',
-                    strokeWeight: 5,
-                    strokeOpacity: 0.8
-                }
-            });
-            
-            calculateRoute();
+  <div id="map"></div>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+
+  <script>
+    // stops injected by Flask
+    const stops = {{ stops | tojson | safe }};
+    const dayNumber = {{ day_number|default(1) }};
+
+    // friendly message when no planned route present
+    if (!stops || stops.length < 2) {
+      document.getElementById('map-info').innerHTML = '<div class="map-warning">No planned route for day ' + dayNumber + '. Click "Plan Next Day" first.</div>';
+      // create minimal centered map
+      const fallbackCenter = [10.0236, 76.5656]; // Pezhakkapilly approx
+      const map = L.map('map').setView(fallbackCenter, 11);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    } else {
+      document.getElementById('map-info').innerHTML = '<strong>Planned route — Day ' + dayNumber + '</strong>';
+      // ensure lat/lng exist for drawing; filter out stops without coords
+      const latlngStops = stops.filter(s => s.lat !== null && s.lng !== null);
+
+      const center = latlngStops.length ? [latlngStops[0].lat, latlngStops[0].lng] : [10.0236, 76.5656];
+      const map = L.map('map').setView(center, 10);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+      // draw polyline through all stops that have lat/lng (use order provided)
+      const latlngs = [];
+      for (let i=0;i<stops.length;i++){
+        const s = stops[i];
+        if (s.lat !== null && s.lng !== null) latlngs.push([s.lat, s.lng]);
+      }
+
+      if (latlngs.length >= 2) {
+        const poly = L.polyline(latlngs, {color:'#E41E26', weight:4, opacity:0.85}).addTo(map);
+        map.fitBounds(poly.getBounds(), {padding:[40,40]});
+      }
+
+      // add markers with numbering and popups
+      for (let i=0;i<stops.length;i++){
+        const s = stops[i];
+        const label = (i === 0 ? 'HQ' : (i === stops.length-1 ? 'HQ' : String(i)));
+        if (s.lat !== null && s.lng !== null) {
+          const marker = L.marker([s.lat, s.lng], {
+            title: s.name || s.address || label
+          }).addTo(map);
+          const popupHtml = `<div><strong>${s.name || ''}</strong><br><small>${s.address || ''}</small></div>`;
+          marker.bindPopup(popupHtml);
         }
-        
-        function calculateRoute() {
-            if (stops.length < 2) {
-                console.error('Need at least 2 stops for a route');
-                alert('Not enough stops to display route');
-                return;
-            }
-            
-            const origin = stops[0].address || stops[0].name;
-            const destination = stops[stops.length - 1].address || stops[stops.length - 1].name;
-            
-            const waypoints = [];
-            for (let i = 1; i < stops.length - 1; i++) {
-                waypoints.push({
-                    location: stops[i].address || stops[i].name,
-                    stopover: true
-                });
-            }
-            
-            const request = {
-                origin: origin,
-                destination: destination,
-                waypoints: waypoints,
-                optimizeWaypoints: false,
-                travelMode: google.maps.TravelMode.DRIVING
-            };
-            
-            console.log('\n=== ROUTE REQUEST ===');
-            console.log('Origin (Stop 1):', origin);
-            console.log('Destination (Stop ' + stops.length + '):', destination);
-            console.log('Waypoints:', waypoints.length);
-            
-            directionsService.route(request, function(result, status) {
-                if (status === 'OK') {
-                    console.log('✓ Route calculated successfully');
-                    directionsRenderer.setDirections(result);
-                    addMarkersWithGeocoding();
-                } else {
-                    console.error('✗ Directions request failed:', status);
-                    alert('Could not display route on map. Status: ' + status);
-                }
-            });
-        }
-        
-        function addMarkersWithGeocoding() {
-            console.log('\n=== ADDING MARKERS WITH GEOCODING ===');
-            
-            markers.forEach(marker => marker.setMap(null));
-            markers = [];
-            
-            const startAddress = stops[0].address || stops[0].name;
-            
-            console.log('Geocoding START location:', startAddress);
-            
-            geocoder.geocode({ address: startAddress }, function(results, status) {
-                if (status === 'OK') {
-                    const startPos = results[0].geometry.location;
-                    
-                    console.log('✓ START position found:');
-                    console.log('  Location:', stops[0].name);
-                    console.log('  Address:', startAddress);
-                    console.log('  Lat:', startPos.lat());
-                    console.log('  Lng:', startPos.lng());
-                    
-                    const startMarker = new google.maps.Marker({
-                        position: startPos,
-                        map: map,
-                        icon: {
-                            url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                            scaledSize: new google.maps.Size(55, 55),
-                            anchor: new google.maps.Point(27, 55)
-                        },
-                        title: 'START: ' + stops[0].name,
-                        zIndex: 5000,
-                        animation: google.maps.Animation.BOUNCE,
-                        optimized: false
-                    });
-                    
-                    setTimeout(() => {
-                        startMarker.setAnimation(null);
-                    }, 2000);
-                    
-                    const startInfowindow = new google.maps.InfoWindow({
-                        content: `<div style="padding: 12px; min-width: 240px;">
-                            <strong style="font-size: 17px; color: #007bff;">📍 START POINT</strong><br>
-                            <strong style="font-size: 15px; margin-top: 8px; display: block;">${stops[0].name}</strong><br>
-                            <small style="color: #666; font-size: 12px;">${stops[0].address}</small><br>
-                        </div>`
-                    });
-                    
-                    startMarker.addListener('click', function() {
-                        markers.forEach((m) => { if (m.infowindow) m.infowindow.close(); });
-                        startInfowindow.open(map, startMarker);
-                    });
-                    
-                    startMarker.infowindow = startInfowindow;
-                    markers.push(startMarker);
-                    
-                    console.log('✓ BLUE marker added at', stops[0].name);
-                    
-                    map.setCenter(startPos);
-                    map.setZoom(12);
-                    
-                    addIntermediateMarkersWithGeocoding();
-                    
-                } else {
-                    console.error('✗ Geocoding failed for START:', status);
-                    alert('Could not locate: ' + startAddress);
-                }
-            });
-        }
-        
-        function addIntermediateMarkersWithGeocoding() {
-            console.log('\n=== ADDING INTERMEDIATE RED MARKERS ===');
-            
-            let processedCount = 0;
-            const totalIntermediate = stops.length - 2;
-            
-            for (let i = 1; i < stops.length - 1; i++) {
-                const stopAddress = stops[i].address || stops[i].name;
-                const stopIndex = i;
-                
-                geocoder.geocode({ address: stopAddress }, function(results, status) {
-                    if (status === 'OK') {
-                        const position = results[0].geometry.location;
-                        
-                        console.log(`✓ Stop ${stopIndex + 1} (${stops[stopIndex].name}):`);
-                        console.log('  Lat:', position.lat());
-                        console.log('  Lng:', position.lng());
-                        
-                        const marker = new google.maps.Marker({
-                            position: position,
-                            map: map,
-                            label: { 
-                                text: String(stopIndex + 1),
-                                color: 'white', 
-                                fontWeight: 'bold',
-                                fontSize: '14px'
-                            },
-                            icon: {
-                                path: google.maps.SymbolPath.CIRCLE,
-                                scale: 15,
-                                fillColor: '#E41E26',
-                                fillOpacity: 1,
-                                strokeColor: 'white',
-                                strokeWeight: 3
-                            },
-                            title: stops[stopIndex].name,
-                            zIndex: 1000
-                        });
-                        
-                        const infowindow = new google.maps.InfoWindow({
-                            content: `<div style="padding: 10px; min-width: 200px;">
-                                <strong style="font-size: 14px; color: #E41E26;">🔴 Stop ${stopIndex + 1}</strong><br>
-                                <strong style="font-size: 13px;">${stops[stopIndex].name}</strong><br>
-                                <small style="color: #666;">${stops[stopIndex].address}</small>
-                            </div>`
-                        });
-                        
-                        marker.addListener('click', function() {
-                            markers.forEach((m) => { if (m.infowindow) m.infowindow.close(); });
-                            infowindow.open(map, marker);
-                        });
-                        
-                        marker.infowindow = infowindow;
-                        markers.push(marker);
-                        
-                        processedCount++;
-                        
-                        if (processedCount === totalIntermediate) {
-                            console.log('\n=== SUMMARY ===');
-                            console.log('✓ Total markers:', markers.length);
-                            console.log('  - Blue (START):', 1);
-                            console.log('  - Red (branches):', markers.length - 1);
-                        }
-                        
-                    } else {
-                        console.error(`✗ Geocoding failed for stop ${stopIndex + 1}:`, status);
-                    }
-                });
-            }
-        }
-        
-        function loadGoogleMaps() {
-            if (!apiKey || apiKey === '') {
-                alert('Google Maps API key is not configured. Please add it in the .env file.');
-                document.getElementById('map').innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f5f5f5; color: #666; font-size: 18px;">Google Maps API key not configured</div>';
-                return;
-            }
-            
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry&callback=initMap`;
-            script.async = true;
-            script.defer = true;
-            script.onerror = function() {
-                alert('Failed to load Google Maps. Please check your API key.');
-            };
-            document.head.appendChild(script);
-        }
-        
-        window.addEventListener('load', function() {
-            loadGoogleMaps();
-        });
-    </script>
+      }
+    }
+  </script>
 </body>
 </html>
