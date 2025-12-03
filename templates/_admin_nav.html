@@ -12,8 +12,5 @@
       <a href="{{ url_for('route_optimization') }}">Route Optimization</a>
       <a href="{{ url_for('logout') }}">Logout</a>
     </div>
-    {% if session.get('user') %}
-      <div class="admin-user">Signed in as {{ session.get('user') }}</div>
-    {% endif %}
   </div>
 </nav>

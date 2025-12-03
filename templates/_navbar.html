@@ -1,0 +1,29 @@
+<nav class="admin-navbar" role="navigation" aria-label="Main">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <div class="admin-navbar-inner">
+    <div class="admin-brand">
+      <a href="{{ url_for('route_optimization') }}" class="brand-link">
+        <img src="{{ url_for('static', filename='images/Logo.png') }}" alt="Milkrun" class="admin-logo" style="height:32px;">
+      </a>
+    </div>
+
+    <div class="admin-nav-links" role="menubar" aria-label="Primary">
+      {% if session.get('role') == 'auditor' %}
+        <!-- Auditor: only Route Optimization and View Profile -->
+        <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
+        <a class="nav-link" href="{{ url_for('auditor_profile') }}">View Profile</a>
+      {% elif session.get('role') == 'manager' %}
+        <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
+      {% else %}
+        <!-- fallback/nav for anonymous or other roles -->
+        <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
+      {% endif %}
+
+      {% if session.get('user') %}
+        <a class="nav-link logout" href="{{ url_for('logout') }}">Logout</a>
+      {% else %}
+        <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>

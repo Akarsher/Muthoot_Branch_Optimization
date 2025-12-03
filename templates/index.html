@@ -6,8 +6,14 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <!-- Include Admin Navbar -->
-  {% include '_admin_nav.html' %}
+  <!-- Include appropriate navbar based on role -->
+  {% if session.get('role') == 'admin' %}
+    {% include '_admin_nav.html' %}
+  {% elif session.get('role') == 'auditor' %}
+    {% include '_navbar.html' %}
+  {% else %}
+    {% include '_admin_nav.html' %}
+  {% endif %}
   
   <!-- Main Content Wrapper -->
   <div class="content-wrapper">
@@ -40,6 +46,8 @@
 
     <!-- Route Display -->
     <div id="routeDisplay" class="route-display"></div>
+    <!-- ensure an #output element exists for scripts that write to #output -->
+    <div id="output" class="route-output" aria-live="polite"></div>
 
     <!-- Map Container -->
     <div id="map"></div>
@@ -85,7 +93,7 @@
     
     async function submitVisits(branchIds, dayBranchIds, dayNumber) {
       try {
-        const response = await apiFetch("/api/submit-visits", {
+        const response = await fetch("/api/submit-visits", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -98,10 +106,23 @@
         const data = await response.json();
         
         if (data.success) {
+          // Always close the confirmation section when submit is pressed
           const confirmDiv = document.getElementById(`confirm-day-${dayNumber}`);
           if (confirmDiv) {
             confirmDiv.innerHTML = `<div class="status-message success">✅ Day ${dayNumber} submitted and closed!</div>`;
           }
+
+          // Clear server-stored last route so restore won't bring it back
+          try {
+            await fetch('/api/clear-last-route', { method: 'POST' });
+          } catch (e) {
+            console.warn('Failed to clear last route on server:', e);
+          }
+
+          // Remove route display from the page (optional visual cleanup)
+          const output = document.getElementById('output');
+          if (output) output.innerHTML = '';
+
           updateStatus();
           return true;
         } else {
@@ -219,19 +240,35 @@
       }
     }
 
+    // Ensure updateStatus uses /api/branches (server provides this) and populates the three counters.
+    // This will override any earlier conflicting updateStatus definitions.
     async function updateStatus() {
       try {
-        const res = await apiFetch("/api/status");
+        const base = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE.replace(/\/$/, '') : '';
+        const res = await fetch(base + '/api/branches');
+        if (!res.ok) return;
         const data = await res.json();
-        
-        if (data.success) {
-          document.getElementById('totalBranches').textContent = data.total_branches;
-          document.getElementById('visitedBranches').textContent = data.visited_branches;
-          document.getElementById('remainingBranches').textContent = data.unvisited_branches;
-        }
-      } catch (error) {
-        console.error('Failed to update status:', error);
+        if (!data || !data.success) return;
+        const branches = data.branches || [];
+        const total = branches.length;
+        const visited = branches.filter(b => Number(b.visited)).length;
+        const remaining = total - visited;
+        const totalEl = document.getElementById('totalBranches');
+        const visitedEl = document.getElementById('visitedBranches');
+        const remainingEl = document.getElementById('remainingBranches');
+        if (totalEl) totalEl.textContent = total;
+        if (visitedEl) visitedEl.textContent = visited;
+        if (remainingEl) remainingEl.textContent = remaining;
+      } catch (err) {
+        console.error('updateStatus error:', err);
       }
+    }
+
+    // Wire the override to run on load (and keep existing DOMContentLoaded handlers safe)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', updateStatus);
+    } else {
+      updateStatus();
     }
 
     async function restoreLastRoute() {
@@ -454,10 +491,57 @@
       }
     });
 
-    // Initialize on page load
+    // Initialize on page load — only update status. Restore only when coming back from map (?restore=1).
     window.addEventListener('DOMContentLoaded', () => {
       updateStatus();
-      restoreLastRoute();
+
+      // If page opened with ?restore=1, restore the last planned route.
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('restore') === '1') {
+          restoreLastRoute();
+          // remove query param so refresh doesn't re-run restore
+          history.replaceState(null, '', window.location.pathname + window.location.hash);
+        }
+      } catch (e) {
+        // ignore if URL API unavailable
+      }
+    });
+
+    // Manual restore / refresh button — keeps ability to restore when user wants it
+    document.getElementById("statusBtn").addEventListener("click", async () => {
+      await updateStatus();
+      await restoreLastRoute(); // only runs when user explicitly clicks the Restore button
+    });
+
+    // The Plan Next Day button already builds and inserts the route into #output when clicked.
+    // Ensure this handler remains present and active:
+    document.getElementById("planSingleBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("planSingleBtn");
+      btn.disabled = true;
+      btn.textContent = "Planning...";
+      try {
+        const res = await fetch("/api/plan", { method: "POST" });
+        const data = await res.json();
+        const out = document.getElementById("output");
+        if (data.error) {
+          out.innerHTML = "<p class='error'>" + data.error + "</p>";
+        } else if (data.success && data.day_route) {
+          // render returned route (existing rendering logic)
+          const route = data.day_route;
+          let html = `<div class="route-card"><h3>Day ${route.day} — ${route.distance_km} km</h3><ol>`;
+          route.stops.forEach(s => html += `<li>${s.name} - ${s.address}</li>`);
+          html += `</ol><div class="branch-actions">${createBranchConfirmation(route.visited_branches, route.day)}`;
+          html += `</div></div>`;
+          out.innerHTML = html;
+        }
+      } catch (err) {
+        document.getElementById("output").innerHTML = `<p class='error'>Planning failed: ${err.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Plan Next Day";
+        updateStatus();
+      }
     });
   </script>
   

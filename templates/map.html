@@ -5,73 +5,162 @@
   <title>Planned Route Map</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
   <style>
     html,body,#map { height:100%; margin:0; padding:0; }
     #map { width:100%; height:100vh; }
+
     .map-overlay {
       position: fixed; left:12px; top:12px; z-index:1000;
       background:#fff; padding:8px 10px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15);
+      font-family: Arial, sans-serif;
     }
     .map-warning { color:#c82333; font-weight:600; }
+
+    /* numbered / HQ marker styles using divIcon */
+    .numbered-marker {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-weight:700;
+      font-size:12px;
+      width:30px;
+      height:30px;
+      border-radius:50%;
+      border: 2px solid #fff;
+      box-shadow:0 1px 3px rgba(0,0,0,0.3);
+    }
+    .marker-start { background:#28a745; }   /* green for start (HQ) */
+    .marker-end   { background:#dc3545; }   /* red for end (HQ) */
+    .marker-normal{ background:#1e90ff; }   /* blue for regular stops */
+
+    /* popup small styling */
+    .popup-title { font-weight:700; margin-bottom:4px; }
+    .legend {
+      font-size:13px;
+      margin-top:6px;
+    }
+    .legend-item { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+    .legend-sample { width:14px; height:14px; border-radius:50%; display:inline-block; border:1px solid #fff; }
   </style>
 </head>
 <body>
   <div class="map-overlay">
-    <a href="{{ url_for('route_optimization') }}">← Back to Planning</a>
+    <!-- add restore=1 so index knows to restore the last route when user returns -->
+    <a href="{{ url_for('route_optimization') }}?restore=1">← Back to Planning</a>
     <div id="map-info" style="margin-top:6px;"></div>
+    <div class="legend" id="map-legend" style="display:none">
+      <div class="legend-item"><span class="legend-sample" style="background:#28a745"></span> Start (HQ)</div>
+      <div class="legend-item"><span class="legend-sample" style="background:#1e90ff"></span> Stop</div>
+      <div class="legend-item"><span class="legend-sample" style="background:#dc3545"></span> End (HQ)</div>
+    </div>
   </div>
 
   <div id="map"></div>
 
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
 
   <script>
     // stops injected by Flask
     const stops = {{ stops | tojson | safe }};
     const dayNumber = {{ day_number|default(1) }};
 
+    // helper: create a divIcon with number/text and class
+    function makeDivIcon(text, cls) {
+      return L.divIcon({
+        className: '',
+        html: `<div class="numbered-marker ${cls}">${text}</div>`,
+        iconSize: [30,30],
+        iconAnchor: [15,15],
+        popupAnchor: [0,-18]
+      });
+    }
+
+    // small utility to compute curved midpoint offset (creates gentle curve)
+    function curvedMidpoint(a, b, sign=1, offsetFactor=0.08) {
+      // a,b are {lat,lng}
+      const midLat = (a.lat + b.lat) / 2;
+      const midLng = (a.lng + b.lng) / 2;
+      const dx = b.lng - a.lng;
+      const dy = b.lat - a.lat;
+      // perp vector (-dy, dx)
+      const perpX = -dy;
+      const perpY = dx;
+      // scale factor relative to segment length
+      const segLen = Math.sqrt(dx*dx + dy*dy) || 1e-6;
+      const scale = offsetFactor * segLen * sign;
+      return { lat: midLat + perpY * scale, lng: midLng + perpX * scale };
+    }
+
     // friendly message when no planned route present
     if (!stops || stops.length < 2) {
       document.getElementById('map-info').innerHTML = '<div class="map-warning">No planned route for day ' + dayNumber + '. Click "Plan Next Day" first.</div>';
-      // create minimal centered map
-      const fallbackCenter = [10.0236, 76.5656]; // Pezhakkapilly approx
+      document.getElementById('map-legend').style.display = 'none';
+      // minimal centered map
+      const fallbackCenter = [10.0236, 76.5656];
       const map = L.map('map').setView(fallbackCenter, 11);
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     } else {
       document.getElementById('map-info').innerHTML = '<strong>Planned route — Day ' + dayNumber + '</strong>';
-      // ensure lat/lng exist for drawing; filter out stops without coords
-      const latlngStops = stops.filter(s => s.lat !== null && s.lng !== null);
+      document.getElementById('map-legend').style.display = 'block';
 
+      // ensure lat/lng exist for drawing; filter out stops without coords
+      const latlngStops = stops.filter(s => (s.lat !== null && s.lng !== null));
       const center = latlngStops.length ? [latlngStops[0].lat, latlngStops[0].lng] : [10.0236, 76.5656];
       const map = L.map('map').setView(center, 10);
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-      // draw polyline through all stops that have lat/lng (use order provided)
-      const latlngs = [];
-      for (let i=0;i<stops.length;i++){
-        const s = stops[i];
-        if (s.lat !== null && s.lng !== null) latlngs.push([s.lat, s.lng]);
+      // Build curved polyline by turning each segment into [from, midOffset, to]
+      const combined = [];
+      let sign = 1;
+      for (let i = 0; i < latlngStops.length - 1; i++) {
+        const a = { lat: +latlngStops[i].lat, lng: +latlngStops[i].lng };
+        const b = { lat: +latlngStops[i+1].lat, lng: +latlngStops[i+1].lng };
+        // Push start point (avoid duplicates)
+        if (combined.length === 0) combined.push([a.lat, a.lng]);
+
+        // compute gentle curved midpoint (alternate sign to vary curve direction)
+        const mid = curvedMidpoint(a, b, sign, 0.08);
+        combined.push([mid.lat, mid.lng]);
+        combined.push([b.lat, b.lng]);
+
+        sign = -sign; // alternate curve side to avoid all-curves-in-one-direction
       }
 
-      if (latlngs.length >= 2) {
-        const poly = L.polyline(latlngs, {color:'#E41E26', weight:4, opacity:0.85}).addTo(map);
-        map.fitBounds(poly.getBounds(), {padding:[40,40]});
+      // Draw polyline with smoother appearance
+      const routeLine = L.polyline(combined, {
+        color: '#E41E26',
+        weight: 4,
+        opacity: 0.9,
+        smoothFactor: 1,
+        lineCap: 'round'
+      }).addTo(map);
+
+      // Slight shadow / outer line to make route stand out
+      L.polyline(combined, {
+        color: 'rgba(0,0,0,0.06)',
+        weight: 10,
+        opacity: 0.35,
+        interactive: false
+      }).addTo(map);
+
+      // Add markers: start (green HQ), numbered stops (blue), end (red HQ)
+      for (let i = 0; i < latlngStops.length; i++) {
+        const s = latlngStops[i];
+        const isFirst = (i === 0);
+        const isLast  = (i === latlngStops.length - 1);
+        const label = isFirst ? 'HQ' : (isLast ? 'HQ' : String(i));
+        const cls = isFirst ? 'marker-start' : (isLast ? 'marker-end' : 'marker-normal');
+
+        const marker = L.marker([s.lat, s.lng], { icon: makeDivIcon(label, cls), title: s.name || s.address }).addTo(map);
+        const popupHtml = `<div><div class="popup-title">${s.name || ''}</div><div class="popup-address">${s.address || ''}</div></div>`;
+        marker.bindPopup(popupHtml);
       }
 
-      // add markers with numbering and popups
-      for (let i=0;i<stops.length;i++){
-        const s = stops[i];
-        const label = (i === 0 ? 'HQ' : (i === stops.length-1 ? 'HQ' : String(i)));
-        if (s.lat !== null && s.lng !== null) {
-          const marker = L.marker([s.lat, s.lng], {
-            title: s.name || s.address || label
-          }).addTo(map);
-          const popupHtml = `<div><strong>${s.name || ''}</strong><br><small>${s.address || ''}</small></div>`;
-          marker.bindPopup(popupHtml);
-        }
+      // Fit map to route with padding
+      const bounds = routeLine.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.12));
       }
     }
   </script>
