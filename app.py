@@ -642,6 +642,46 @@ def auditor_profile():
         flash('Unable to load profile: ' + str(e), 'error')
         return redirect(url_for('route_optimization'))
 
+@app.route('/map/day/<int:day_number>')
+def map_day(day_number):
+    """
+    Render map.html for the requested planned-day using the last route stored in session.
+    If no last_route in session, redirect back to planner with a flash message.
+    """
+    lr = session.get('last_route')
+    if not lr:
+        flash('No planned route available. Please click "Plan Next Day" first.', 'error')
+        return redirect(url_for('route_optimization'))
+
+    # single_day format: {'type':'single_day', 'day_route': {...}, 'has_more_branches': bool}
+    if lr.get('type') == 'single_day':
+        day_route = lr.get('day_route') or {}
+        # day_number should match the stored day (usually 1)
+        if day_number != int(day_route.get('day', 1)):
+            flash('Requested day not available for the last planned route.', 'error')
+            return redirect(url_for('route_optimization'))
+        stops = day_route.get('stops', [])
+        return render_template('map.html', stops=stops, day_number=day_number)
+
+    # multi-day format: store days as list under 'days'
+    if lr.get('type') in ('multi_day',):
+        days = lr.get('days') or []
+        idx = day_number - 1
+        if idx < 0 or idx >= len(days):
+            flash('Requested day not available in planned multi-day route.', 'error')
+            return redirect(url_for('route_optimization'))
+        stops = days[idx].get('stops', [])
+        return render_template('map.html', stops=stops, day_number=day_number)
+
+    # fallback: unknown structure
+    flash('Saved route has unexpected format.', 'error')
+    return redirect(url_for('route_optimization'))
+
+@app.route('/map')
+def map_default():
+    """Redirect to day 1 map for convenience."""
+    return redirect(url_for('map_day', day_number=1))
+
 if __name__ == '__main__':
     print("Starting Flask application...")
     print(f"Database path: {DB_PATH}")
