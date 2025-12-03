@@ -8,6 +8,7 @@ from copy import deepcopy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import hashlib
+from werkzeug.utils import secure_filename
 
 # Load environment variables
 load_dotenv()
@@ -620,15 +621,70 @@ def add_cors_headers(response):
 def auditor_login_deprecated():
     return redirect(url_for('login'))
 
-@app.route('/auditor/profile')
+@app.route('/auditor/profile', methods=['GET', 'POST'])
 def auditor_profile():
-    """Render auditor profile page for currently logged-in auditor."""
+    """Render and update auditor profile page for currently logged-in auditor."""
     if 'auditor_id' not in session:
         return redirect(url_for('login'))
+
+    auditor_id = session.get('auditor_id')
+    upload_dir = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'auditors')
+    os.makedirs(upload_dir, exist_ok=True)
+
+    if request.method == 'POST':
+        # get form fields
+        name = (request.form.get('name') or None)
+        email = (request.form.get('email') or None)
+        phone = (request.form.get('phone') or None)
+
+        avatar_path = None
+        file = request.files.get('avatar')
+        if file and getattr(file, 'filename', None):
+            filename = secure_filename(file.filename)
+            # prefix with auditor id + timestamp to avoid collisions
+            ts = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+            filename = f"{auditor_id}_{ts}_{filename}"
+            save_path = os.path.join(upload_dir, filename)
+            try:
+                file.save(save_path)
+                # path stored relative to static/
+                avatar_path = f"uploads/auditors/{filename}"
+            except Exception as e:
+                flash('Failed to save avatar: ' + str(e), 'error')
+
+        # persist fields to DB (update only provided values)
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            # build update dynamically
+            updates = []
+            params = []
+            if name is not None:
+                updates.append("name = ?"); params.append(name)
+            if email is not None:
+                updates.append("email = ?"); params.append(email)
+            if phone is not None:
+                updates.append("phone = ?"); params.append(phone)
+            if avatar_path:
+                updates.append("avatar = ?"); params.append(avatar_path)
+            if updates:
+                params.append(auditor_id)
+                sql = "UPDATE auditors SET " + ", ".join(updates) + " WHERE id = ?"
+                cur.execute(sql, tuple(params))
+                conn.commit()
+            conn.close()
+            flash('Profile updated successfully.', 'success')
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            flash('Failed to update profile: ' + str(e), 'error')
+
+        return redirect(url_for('auditor_profile'))
+
+    # GET: render profile
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM auditors WHERE id = ?", (session.get('auditor_id'),))
+        cur.execute("SELECT * FROM auditors WHERE id = ?", (auditor_id,))
         row = cur.fetchone()
         conn.close()
         if not row:
