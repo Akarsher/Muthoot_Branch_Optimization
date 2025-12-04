@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from os import getenv
 from copy import deepcopy
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask import jsonify
 from datetime import datetime
 import hashlib
 from werkzeug.utils import secure_filename
@@ -269,19 +270,36 @@ def login():
                 flash('Logged in as admin.', 'success')
                 return redirect(url_for('admin_dashboard'))
 
-        # branch_managers
-        cur.execute("SELECT id, username, password_hash, approved FROM branch_managers WHERE username = ?", (username,))
+        # branch_managers: authenticate against password_hash first, fallback to plaintext `password`
+        cur.execute("SELECT id, username, password, password_hash, approved FROM branch_managers WHERE username = ?", (username,))
         row = cur.fetchone()
         if row:
             stored_hash = row['password_hash'] if 'password_hash' in row.keys() else None
-            if stored_hash and check_password_hash(stored_hash, password):
+            stored_plain = row['password'] if 'password' in row.keys() else None
+            ok = False
+            if stored_hash:
+                try:
+                    ok = check_password_hash(stored_hash, password)
+                except Exception:
+                    ok = False
+            if not ok and stored_plain is not None:
+                ok = (str(stored_plain) == str(password))
+
+            if ok:
+                try:
+                    approved_int = int(row['approved']) if 'approved' in row.keys() and row['approved'] is not None else 0
+                except Exception:
+                    approved_int = 0
+                if approved_int != 1:
+                    flash('Account not approved by admin yet.', 'error')
+                    return redirect(url_for('login'))
                 session.clear()
                 session['user'] = row['username']
                 session['user_id'] = row['id']
                 session['role'] = 'manager'
-                session['approved'] = int(row['approved'] or 0) if 'approved' in row.keys() else 0
+                session['approved'] = approved_int
                 flash('Logged in as branch manager.', 'success')
-                return redirect(url_for('route_optimization'))
+                return redirect(url_for('manager_dashboard'))
 
         # auditors fallback (if role not specified)
         cur.execute("SELECT id, username, password_hash, password, active, role FROM auditors WHERE username = ?", (username,))
@@ -307,7 +325,8 @@ def login():
                 session['user'] = row['username']
                 session['role'] = (row.get('role') or 'auditor').lower()
                 flash('Logged in as auditor.', 'success')
-                return redirect(url_for('auditor_dashboard'))
+                # auditor should go to route optimization index
+                return redirect(url_for('route_optimization'))
 
         flash('Invalid username or password.', 'error')
         return redirect(url_for('login'))
@@ -334,7 +353,8 @@ def admin_dashboard():
         return redirect(url_for('login'))
     if session.get('role') != 'admin':
         return redirect(url_for('route_optimization'))
-    return render_template('admin.html', user=session.get('user'))
+    # template expects user.username, provide object
+    return render_template('admin.html', user={'username': session.get('user')})
 
 @app.route('/admin/branch-management')
 def branch_management():
@@ -463,6 +483,7 @@ def api_plan_one_day():
             if not route2 or len(route2) <= 2:
                 return jsonify({'success': False, 'error': 'Could not find viable route'}), 500
             route, total_km = route2, total2
+        # Build stops list safely from route items (dict or sqlite Row)
         stops = []
         for s in route:
             if isinstance(s, dict):
@@ -475,12 +496,13 @@ def api_plan_one_day():
                 })
             else:
                 # sqlite3.Row mapping
+                keys = set(s.keys())
                 stops.append({
-                    'id': s['id'] if 'id' in s.keys() else None,
-                    'name': s['name'] if 'name' in s.keys() else None,
-                    'address': s['address'] if 'address' in s.keys() else None,
-                    'lat': s['lat'] if 'lat' in s.keys() else None,
-                    'lng': s['lng'] if 'lng' in s.keys() else None,
+                    'id': s['id'] if 'id' in keys else None,
+                    'name': s['name'] if 'name' in keys else None,
+                    'address': s['address'] if 'address' in keys else None,
+                    'lat': s['lat'] if 'lat' in keys else None,
+                    'lng': s['lng'] if 'lng' in keys else None,
                 })
         day_route = {
             'day': 1,
@@ -590,21 +612,39 @@ def api_admin_managers_pending():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/admin/managers/<int:manager_id>/approve', methods=['POST'])
-def api_admin_managers_approve(manager_id):
-    if 'user' not in session or session.get('role') != 'admin':
-        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+def api_approve_manager(manager_id):
+    """Admin approves a branch manager -> set approved = 1 and return updated row."""
+    if session.get('role') != 'admin':
+        return jsonify(success=False, error='Unauthorized'), 403
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("UPDATE branch_managers SET approved = 1 WHERE id = ?", (manager_id,))
         conn.commit()
+        cur.execute("SELECT id, username, contact_no, branch_id, approved FROM branch_managers WHERE id = ?", (manager_id,))
+        mgr = cur.fetchone()
+        conn.close()
+        return jsonify(success=True, manager=dict(mgr) if mgr else None)
+    except Exception as e:
+        return jsonify(success=False, error=str(e)), 500
+
+@app.route('/api/admin/managers/<int:manager_id>', methods=['DELETE'])
+def api_remove_manager(manager_id):
+    """Admin deletes a branch manager row (permanent delete)."""
+    if session.get('role') != 'admin':
+        return jsonify(success=False, error='Unauthorized'), 403
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM branch_managers WHERE id = ?", (manager_id,))
         affected = cur.rowcount
+        conn.commit()
         conn.close()
         if affected:
-            return jsonify({'success': True, 'message': 'Manager approved'})
-        return jsonify({'success': False, 'error': 'Manager not found'}), 404
+            return jsonify(success=True)
+        return jsonify(success=False, error='Manager not found'), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify(success=False, error=str(e)), 500
 
 @app.context_processor
 def inject_user():
@@ -737,6 +777,91 @@ def map_day(day_number):
 def map_default():
     """Redirect to day 1 map for convenience."""
     return redirect(url_for('map_day', day_number=1))
+
+@app.route('/register_manager', methods=['GET', 'POST'])
+def register_manager():
+    """
+    Render register_manager.html on GET and create a branch_manager on POST.
+    The template expects `branches` as a list of (id, name) for the branch select.
+    On successful registration the template is rendered with success=True.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # GET -> show form
+        if request.method == 'GET':
+            cur.execute("SELECT id, name FROM branches ORDER BY name")
+            branches = cur.fetchall()
+            conn.close()
+            return render_template('register_manager.html', branches=branches)
+
+        # POST -> validate and create
+        name = (request.form.get('name') or '').strip()
+        contact_no = (request.form.get('contact_no') or '').strip()
+        branch_id = request.form.get('branch_id')
+        password = request.form.get('password') or ''
+
+        error = None
+        if not name or not contact_no or not branch_id or not password:
+            error = 'All fields are required.'
+        else:
+            # store raw input password in `password` and hashed value in `password_hash`
+            pwd_hash = generate_password_hash(password)
+            cur.execute(
+                "INSERT INTO branch_managers (name, username, contact_no, branch_id, password, password_hash, approved) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (name, name, contact_no, branch_id, password, pwd_hash, 0)
+            )
+            conn.commit()
+            # reload branches to render the page with success message
+            cur.execute("SELECT id, name FROM branches ORDER BY name")
+            branches = cur.fetchall()
+            conn.close()
+            return render_template('register_manager.html', success=True, branches=branches)
+
+    except Exception as e:
+        try:
+            conn.close()
+        except:
+            pass
+        error = str(e)
+
+    # on error: show form with error message
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM branches ORDER BY name")
+        branches = cur.fetchall()
+        conn.close()
+    except:
+        branches = []
+    return render_template('register_manager.html', error=error, branches=branches)
+
+@app.route('/manager')
+@app.route('/manager/dashboard')
+def manager_dashboard():
+    """Branch manager landing page -> renders templates/manager/dashboard.html"""
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    if session.get('role') != 'manager':
+        return redirect(url_for('route_optimization'))
+
+    branch = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT branch_id FROM branch_managers WHERE id = ?", (session.get('user_id'),))
+        bm = cur.fetchone()
+        if bm:
+            branch_id = bm['branch_id'] if 'branch_id' in bm.keys() else bm[0] if isinstance(bm, (list, tuple)) else None
+            if branch_id:
+                cur.execute("SELECT id, name, address, lat, lng, visited FROM branches WHERE id = ?", (branch_id,))
+                branch = cur.fetchone()
+        conn.close()
+    except Exception:
+        branch = None
+
+    return render_template('manager/dashboard.html', user={'username': session.get('user')}, branch=branch)
 
 if __name__ == '__main__':
     print("Starting Flask application...")
