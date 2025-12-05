@@ -3,26 +3,32 @@
   <div class="admin-navbar-inner">
     <div class="admin-brand">
       <a href="{{ url_for('route_optimization') }}" class="brand-link">
-        <img src="{{ url_for('static', filename='images/Logo.png') }}" alt="Milkrun" class="admin-logo" style="height:32px;">
+        <img src="{{ url_for('static', filename='images/Logo.png') }}" alt="Milkrun" class="admin-logo">
       </a>
     </div>
 
     <div class="admin-nav-links" role="menubar" aria-label="Primary">
       {% if session.get('role') == 'auditor' %}
-        <!-- Auditor: only Route Optimization and View Profile -->
+        <!-- Auditor: Route Optimization -->
         <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
+        <!-- Auditor: View Profile -->
         <a class="nav-link" href="{{ url_for('auditor_profile') }}">View Profile</a>
+        <!-- Auditor: Logout -->
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
       {% elif session.get('role') == 'manager' %}
+        <!-- Manager: Route Optimization -->
         <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
+        <!-- Manager: View Profile -->
+        <a class="nav-link" href="/manager/profile">View Profile</a>
+        <!-- Manager: Edit Branch Details -->
+        <a class="nav-link" href="/manager/branch/edit">Edit Branch Details</a>
+        <!-- Manager: Logout -->
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
       {% else %}
         <!-- fallback/nav for anonymous or other roles -->
         <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
-      {% endif %}
-
-      {% if session.get('user') %}
-        <a class="nav-link logout" href="{{ url_for('logout') }}">Logout</a>
-      {% else %}
-        <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+        <!-- Logout -->
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
       {% endif %}
     </div>
   </div>

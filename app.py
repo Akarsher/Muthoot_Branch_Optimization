@@ -863,6 +863,84 @@ def manager_dashboard():
 
     return render_template('manager/dashboard.html', user={'username': session.get('user')}, branch=branch)
 
+@app.route('/manager/viewprofile.html')
+def manager_viewprofile_page():
+    if 'user' not in session or session.get('role') != 'manager':
+        return redirect(url_for('login'))
+
+    user_obj = {'username': session.get('user')}
+    branch = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT branch_id, contact_no FROM branch_managers WHERE id = ?", (session.get('user_id'),))
+        bm = cur.fetchone()
+        if bm:
+            # handle sqlite3.Row (mapping) or tuple
+            try:
+                branch_id = bm['branch_id']
+                contact_no = bm['contact_no']
+            except Exception:
+                branch_id = bm[0] if len(bm) > 0 else None
+                contact_no = bm[1] if len(bm) > 1 else None
+
+            user_obj['branch_id'] = branch_id
+            user_obj['contact_no'] = contact_no
+
+            if branch_id:
+                cur.execute("SELECT id, name, address, lat, lng, visited FROM branches WHERE id = ?", (branch_id,))
+                branch = cur.fetchone()
+        conn.close()
+    except Exception:
+        branch = None
+
+    return render_template('manager/viewprofile.html', user=user_obj, branch=branch)
+
+@app.route('/manager/edit_branchdetails.html', methods=['GET', 'POST'])
+def manager_edit_branchdetails_page():
+    if 'user' not in session or session.get('role') != 'manager':
+        return redirect(url_for('login'))
+
+    # POST: update branch (preserve existing update logic if present elsewhere)
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        address = (request.form.get('address') or '').strip()
+        lat = request.form.get('lat')
+        lng = request.form.get('lng')
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            # find manager's branch
+            cur.execute("SELECT branch_id FROM branch_managers WHERE id = ?", (session.get('user_id'),))
+            bm = cur.fetchone()
+            branch_id = bm['branch_id'] if bm and 'branch_id' in bm.keys() else None
+            if branch_id and name:
+                cur.execute("UPDATE branches SET name = ?, address = ?, lat = ?, lng = ? WHERE id = ?", (name, address, lat, lng, branch_id))
+                conn.commit()
+            conn.close()
+            return redirect('/manager/viewprofile.html')
+        except Exception as e:
+            error = str(e)
+    else:
+        error = None
+
+    branch = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT branch_id FROM branch_managers WHERE id = ?", (session.get('user_id'),))
+        bm = cur.fetchone()
+        if bm:
+            branch_id = bm['branch_id'] if 'branch_id' in bm.keys() else bm[0] if isinstance(bm, (list, tuple)) else None
+            if branch_id:
+                cur.execute("SELECT id, name, address, lat, lng, visited FROM branches WHERE id = ?", (branch_id,))
+                branch = cur.fetchone()
+        conn.close()
+    except Exception:
+        branch = None
+
+    return render_template('manager/edit_branchdetails.html', branch=branch, error=error)
+
 if __name__ == '__main__':
     print("Starting Flask application...")
     print(f"Database path: {DB_PATH}")
