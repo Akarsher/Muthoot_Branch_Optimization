@@ -1,172 +1,113 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Branch Management - Admin</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
-        
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center;
-        }
-        .header h1 { font-size: 24px; }
-        .back-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; 
-                   border-radius: 5px; cursor: pointer; text-decoration: none; }
-        .back-btn:hover { background: rgba(255,255,255,0.3); }
-        
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        
-        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-                    gap: 15px; margin-bottom: 30px; }
-        .stat-card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
-        .stat-number { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
-        .stat-label { color: #666; font-size: 14px; }
-        .total { color: #3498db; } .visited { color: #27ae60; } .unvisited { color: #e74c3c; } .hq { color: #9b59b6; }
-        
-        .actions { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 30px; }
-        .actions h3 { margin-bottom: 15px; color: #333; }
-        .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        
-        .add-form { display: flex; flex-direction: column; gap: 10px; }
-        .add-form input { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-        .add-form button { background: #27ae60; color: white; padding: 12px; border: none; border-radius: 5px; cursor: pointer; }
-        .add-form button:hover { background: #219a52; }
-        .add-form label { font-weight: 500; color: #555; }
-        
-        .message { padding: 10px; border-radius: 5px; margin-bottom: 15px; }
-        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        
-        .tabs { display: flex; margin-bottom: 20px; }
-        .tab { padding: 12px 20px; background: #ecf0f1; border: none; cursor: pointer; margin-right: 5px; border-radius: 5px 5px 0 0; }
-        .tab.active { background: white; border-bottom: 2px solid #3498db; }
-        
-        .branch-grid { background: white; border-radius: 0 10px 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .branch-table { width: 100%; border-collapse: collapse; }
-        .branch-table th, .branch-table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
-        .branch-table th { background: #f8f9fa; font-weight: 600; color: #555; }
-        .branch-table tr:hover { background: #f8f9fa; }
-        
-        .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-        .badge-hq { background: #e8f4fd; color: #1f77b4; }
-        .badge-branch { background: #f0f8ff; color: #4682b4; }
-        .badge-visited { background: #d4edda; color: #155724; }
-        .badge-unvisited { background: #fff3cd; color: #856404; }
-        
-        .coordinates { font-family: 'Courier New', monospace; font-size: 11px; color: #666; }
-        
-        .delete-btn { 
-            background: #dc3545; color: white; border: none; padding: 6px 12px; 
-            border-radius: 4px; cursor: pointer; font-size: 12px; 
-        }
-        .delete-btn:hover { background: #c82333; }
-        .delete-btn:disabled { background: #6c757d; cursor: not-allowed; }
-        
-        .action-buttons { display: flex; gap: 5px; }
-    </style>
+    <title>Branch Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="header">
-        <h1>🏢 Branch Management</h1>
-        <a href="/admin" class="back-btn">← Back to Dashboard</a>
-    </div>
+    {% include "_admin_nav.html" %}
+    
+    <main class="admin-wrap">
+    </main>
 
-    <div class="container">
-        <!-- Statistics -->
-        <div class="stats-row">
-            <div class="stat-card">
-                <div class="stat-number total" id="totalBranches">0</div>
-                <div class="stat-label">Total Branches</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number visited" id="visitedBranches">0</div>
-                <div class="stat-label">Visited</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number unvisited" id="unvisitedBranches">0</div>
-                <div class="stat-label">Unvisited</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number hq" id="hqCount">0</div>
-                <div class="stat-label">Headquarters</div>
-            </div>
-        </div>
+       
 
-        <!-- Actions -->
-        <div class="actions">
-            <h3>Add New Branch</h3>
-            <div id="branchMessage"></div>
-            <div class="action-grid">
-                <div class="add-form">
-                    <label for="branchName">Branch Name *</label>
-                    <input type="text" id="branchName" placeholder="e.g. Downtown Branch">
-                    
-                    <label for="branchAddress">Address</label>
-                    <input type="text" id="branchAddress" placeholder="Optional address">
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div>
-                            <label for="branchLat">Latitude *</label>
-                            <input type="number" id="branchLat" step="any" placeholder="e.g. 12.9716">
+        <div class="container">
+            <!-- Statistics -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-number total" id="totalBranches">0</div>
+                    <div class="stat-label">Total Branches</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number visited" id="visitedBranches">0</div>
+                    <div class="stat-label">Visited</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number unvisited" id="unvisitedBranches">0</div>
+                    <div class="stat-label">Unvisited</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number hq" id="hqCount">0</div>
+                    <div class="stat-label">Headquarters</div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions">
+                <h3>Add New Branch</h3>
+                <div id="branchMessage"></div>
+                <div class="action-grid">
+                    <div class="add-form">
+                        <label for="branchName">Branch Name *</label>
+                        <input type="text" id="branchName" placeholder="e.g. Downtown Branch">
+                        
+                        <label for="branchAddress">Address</label>
+                        <input type="text" id="branchAddress" placeholder="Optional address">
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div>
+                                <label for="branchLat">Latitude *</label>
+                                <input type="number" id="branchLat" step="any" placeholder="e.g. 12.9716">
+                            </div>
+                            <div>
+                                <label for="branchLng">Longitude *</label>
+                                <input type="number" id="branchLng" step="any" placeholder="e.g. 77.5946">
+                            </div>
                         </div>
-                        <div>
-                            <label for="branchLng">Longitude *</label>
-                            <input type="number" id="branchLng" step="any" placeholder="e.g. 77.5946">
-                        </div>
+                        
+                        <label>
+                            <input type="checkbox" id="isHQ"> Mark as Headquarters
+                        </label>
+                        
+                        <button onclick="addBranch()">Add Branch</button>
                     </div>
                     
-                    <label>
-                        <input type="checkbox" id="isHQ"> Mark as Headquarters
-                    </label>
-                    
-                    <button onclick="addBranch()">Add Branch</button>
+                    <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                        <h4 style="margin-bottom: 10px;">💡 Tips</h4>
+                        <ul style="color: #666; font-size: 14px; line-height: 1.6;">
+                            <li>Use Google Maps to find accurate coordinates</li>
+                            <li>Only one branch can be marked as HQ</li>
+                            <li>Address is optional but recommended</li>
+                            <li>Coordinates should be in decimal format</li>
+                            <li>⚠️ Be careful when deleting branches - this action cannot be undone</li>
+                        </ul>
+                    </div>
                 </div>
-                
-                <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
-                    <h4 style="margin-bottom: 10px;">💡 Tips</h4>
-                    <ul style="color: #666; font-size: 14px; line-height: 1.6;">
-                        <li>Use Google Maps to find accurate coordinates</li>
-                        <li>Only one branch can be marked as HQ</li>
-                        <li>Address is optional but recommended</li>
-                        <li>Coordinates should be in decimal format</li>
-                        <li>⚠️ Be careful when deleting branches - this action cannot be undone</li>
-                    </ul>
+            </div>
+
+            <!-- Branch Tabs and Table -->
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('all')">All Branches</button>
+                <button class="tab" onclick="showTab('visited')">Visited</button>
+                <button class="tab" onclick="showTab('unvisited')">Unvisited</button>
+                <button class="tab" onclick="showTab('hq')">Headquarters</button>
+            </div>
+
+            <div class="branch-grid">
+                <table class="branch-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Address</th>
+                            <th>Coordinates</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="branchTableBody">
+                        <!-- Branches will be loaded here -->
+                    </tbody>
+                </table>
+                <div id="noBranches" style="padding: 40px; text-align: center; color: #666; display: none;">
+                    No branches found for this filter.
                 </div>
             </div>
         </div>
-
-        <!-- Branch Tabs and Table -->
-        <div class="tabs">
-            <button class="tab active" onclick="showTab('all')">All Branches</button>
-            <button class="tab" onclick="showTab('visited')">Visited</button>
-            <button class="tab" onclick="showTab('unvisited')">Unvisited</button>
-            <button class="tab" onclick="showTab('hq')">Headquarters</button>
-        </div>
-
-        <div class="branch-grid">
-            <table class="branch-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Address</th>
-                        <th>Coordinates</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="branchTableBody">
-                    <!-- Branches will be loaded here -->
-                </tbody>
-            </table>
-            <div id="noBranches" style="padding: 40px; text-align: center; color: #666; display: none;">
-                No branches found for this filter.
-            </div>
-        </div>
-    </div>
+    </main>
 
     <script>
         let allBranches = [];
@@ -378,4 +319,4 @@
         document.addEventListener('DOMContentLoaded', loadBranches);
     </script>
 </body>
-</html>
+</html> 

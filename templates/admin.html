@@ -4,112 +4,87 @@
   <meta charset="utf-8">
   <title>Admin Dashboard</title>
   <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    .wrap { max-width: 800px; margin: 20px auto; }
-    .card { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-bottom: 16px; cursor: pointer; }
-    .success { color: #28a745; }
-    .error { color: #dc3545; }
-    .topbar { display:flex; justify-content: space-between; align-items:center; }
-    .topbar a { margin-left: 10px; }
-    .hello { margin: 8px 0 16px; font-size: 18px; font-weight: 600; }
-    .stats { display:flex; gap: 12px; }
-    .stat { flex:1; color:#fff; border-radius:8px; padding:12px; cursor: default; }
-    .stat.total { background:#007bff; }
-    .stat.visited { background:#28a745; cursor: pointer; }
-    .stat.remaining { background:#ffc107; color:#222; }
-    .stat h4 { margin: 0 0 6px; font-size: 14px; font-weight: 500; }
-    .stat .value { font-size: 22px; font-weight: 700; }
-    .visited-list { display:none; margin-top: 8px; border:1px solid #ccc; border-radius: 6px; max-height:240px; overflow:auto; background:#fff; color:#000; padding:8px; }
-    .visited-list ul { padding-left: 18px; margin:0; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; align-items: start; }
-    .section { display:none; margin-top:10px; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { border:1px solid #ddd; padding:6px 8px; font-size: 13px; }
-    th { background:#eee; text-align:left; }
-    label { display:block; margin: 8px 0 4px; }
-    input { width: 100%; padding: 8px; }
-    button { margin-top: 8px; padding: 8px 12px; }
-  </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <h2>Admin Dashboard</h2>
-      <div>
-        <a href="/logout">Logout ({{ user.username }})</a>
-      </div>
-    </div>
-    <div class="hello">Welcome Admin</div>
-    
-    <!-- Stats Card -->
-    <div class="card">
-      <div class="stats" id="stats">
-        <div class="stat total">
-          <h4>Total Branches</h4>
-          <div class="value" id="totalVal">-</div>
-        </div>
-        <div class="stat visited" id="visitedCard" title="Click to view visited branch names">
-          <h4>Visited</h4>
-          <div class="value" id="visitedVal">-</div>
-        </div>
-        <div class="stat remaining">
-          <h4>Remaining</h4>
-          <div class="value" id="remainingVal">-</div>
-        </div>
-      </div>
-      <div class="visited-list" id="visitedList">
-        <strong>Visited Branches</strong>
-        <ul id="visitedItems"></ul>
-      </div>
-    </div>
-    
-    <!-- Action Cards Grid -->
-    <div class="grid">
-      <div class="card" onclick="toggleSection('auditorSection')">
-        <h3>👥 Manage Auditors</h3>
-        <p>Create and manage auditor accounts</p>
-      </div>
-      
-      <div class="card" onclick="goToBranchManagement()">
-        <h3>🏢 Branch Management</h3>
-        <p>View and manage all branches</p>
-      </div>
-      
-      <div class="card" onclick="goToOptimization()">
-        <h3>🗺️ Route Optimization</h3>
-        <p>Plan and optimize delivery routes</p>
-      </div>
+  {% include "_admin_nav.html" %}
+  <main class="admin-wrap">
+    <header class="admin-header">
+      <!-- changed: uppercase red welcome -->
+      <h2 class="hello welcome-text">WELCOME, {{ user.username }}</h2>
+    </header>
 
-      <div class="card" onclick="goToManagerRegistrations()">
-        <h3>👥 Manager Registrations</h3>
-        <p>Approve or remove manager accounts</p>
-      </div>
-    </div>
+    <!-- Stats Card: three red cards -->
+    <section class="card stats-card">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-title">TOTAL BRANCHES</div>
+          <div class="stat-value" id="totalVal">-</div>
+        </div>
 
-    <!-- Auditor Management Section (Hidden by default) -->
-    <div class="section" id="auditorSection">
-      <div class="card">
-        <h3>Add Auditor</h3>
-        <div id="msg"></div>
-        <label for="auser">Username</label>
-        <input id="auser">
-        <label for="apass">Password</label>
-        <input id="apass" type="password">
-        <button onclick="registerAuditor()">Create Auditor</button>
+        <div class="stat-card">
+          <div class="stat-title">VISITED</div>
+          <div class="stat-value" id="visitedVal">-</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-title">REMAINING</div>
+          <div class="stat-value" id="remainingVal">-</div>
+        </div>
       </div>
-      
-      <div class="card">
-        <h3>Existing Auditors</h3>
-        <div id="audMsg"></div>
-        <table>
-          <thead>
-            <tr><th>Username</th><th>Active</th><th>Created</th></tr>
-          </thead>
-          <tbody id="audTable"></tbody>
-        </table>
+    </section>
+
+    <!-- Auditor area visible on landing -->
+    <section id="manage-auditors" class="auditor-area">
+      <div class="grid two-col">
+        <!-- Add Auditor Card -->
+        <div class="auditor-card">
+          <h3>Add Auditor</h3>
+          <div id="msg"></div>
+          <form onsubmit="event.preventDefault(); registerAuditor();">
+            <div class="auditor-form-group">
+              <label for="auser">Username</label>
+              <input 
+                  id="auser" 
+                  type="text" 
+                  required 
+                  placeholder="Enter username"
+              >
+            </div>
+            
+            <div class="auditor-form-group">
+              <label for="apass">Password</label>
+              <input 
+                  id="apass" 
+                  type="password" 
+                  required 
+                  placeholder="Enter password"
+              >
+            </div>
+            
+            <button type="submit" class="auditor-submit">Create Auditor</button>
+          </form>
+        </div>
+
+        <!-- Existing Auditors Card -->
+        <div class="existing-auditors-card">
+          <h3>Existing Auditors</h3>
+          <div id="audMsg"></div>
+          <div class="table-wrap">
+            <table class="auditors-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="audTable"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script>
     // Load statistics on page load
@@ -155,29 +130,19 @@
       }
     }
 
-    // Toggle sections visibility
-    function toggleSection(id) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.style.display = (el.style.display === 'block') ? 'none' : 'block';
-      if (id === 'auditorSection' && el.style.display === 'block') {
-        loadAuditors();
-      }
-    }
-
     // Register new auditor
     async function registerAuditor() {
       const username = document.getElementById('auser').value.trim();
       const password = document.getElementById('apass').value;
       const msg = document.getElementById('msg');
       msg.textContent = '';
-      
+
       if (!username || !password) {
         msg.className = 'error';
         msg.textContent = 'Username and password are required';
         return;
       }
-      
+
       try {
         const res = await fetch('/admin/register-auditor', {
           method: 'POST',
@@ -212,11 +177,15 @@
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed');
         if (data.items.length === 0) {
-          table.innerHTML = '<tr><td colspan="3">No auditors yet.</td></tr>';
+            table.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No auditors found.</td></tr>';
         } else {
           data.items.forEach(a => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${a.username}</td><td>${a.active ? 'Yes' : 'No'}</td><td>${a.created_at || ''}</td>`;
+            tr.innerHTML = `
+                <td>${a.username}</td>
+                <td><span class="status-${a.active ? 'active' : 'inactive'}">${a.active ? 'Active' : 'Inactive'}</span></td>
+                <td>${a.created_at || ''}</td>
+            `;
             table.appendChild(tr);
           });
         }
@@ -226,22 +195,9 @@
       }
     }
 
-    // Navigation functions
-    function goToOptimization() {
-      window.location.href = '/';
-    }
-
-    function goToBranchManagement() {
-      window.location.href = '/admin/branches';
-    }
-
-    function goToManagerRegistrations() {
-      window.location.href = '/admin/managers';
-    }
-
-    // Initialize page
     document.addEventListener('DOMContentLoaded', () => {
       loadStats();
+      loadAuditors();
       const visitedCard = document.getElementById('visitedCard');
       if (visitedCard) visitedCard.addEventListener('click', toggleVisitedList);
     });
