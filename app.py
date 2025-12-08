@@ -676,7 +676,6 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-
 @app.route("/admin", methods=["GET"])
 def admin_dashboard():
     if not require_role("admin"):
@@ -1248,7 +1247,7 @@ def branch_management():
 def manager_registrations():
     if not require_role("admin"):
         return redirect(url_for("login"))
-    return render_template("manager_registrations.html", user=current_user())
+    return render_template("admin_managers.html", user=current_user())
 
 
 # ---------------- Manager Registrations (Admin) ----------------
@@ -1333,6 +1332,261 @@ def api_admin_manager_delete(mid):
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+# ================== LIVE LOCATION TRACKING API ==================
+
+@app.route("/api/location/start-tracking", methods=["POST"])
+def start_location_tracking():
+    """Auditor starts a tracking session"""
+    if not require_role("auditor"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        user = current_user()
+        data = request.get_json() or {}
+        route_data = data.get('route_data', {})
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # End any existing active sessions for this auditor
+        cur.execute("""
+            UPDATE tracking_sessions 
+            SET end_time = CURRENT_TIMESTAMP, status = 'ended' 
+            WHERE auditor_id = ? AND status = 'active'
+        """, (user['id'],))
+        
+        # Create new tracking session
+        cur.execute("""
+            INSERT INTO tracking_sessions (auditor_id, route_data, status)
+            VALUES (?, ?, 'active')
+        """, (user['id'], str(route_data)))
+        
+        session_id = cur.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "success": True, 
+            "session_id": session_id,
+            "message": "Tracking session started"
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/location/update", methods=["POST"])
+def update_auditor_location():
+    """Auditor sends location update"""
+    if not require_role("auditor"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        user = current_user()
+        data = request.get_json() or {}
+        
+        lat = data.get('lat')
+        lng = data.get('lng')
+        accuracy = data.get('accuracy', 0)
+        session_id = data.get('session_id')
+        
+        if lat is None or lng is None:
+            return jsonify({"success": False, "error": "Latitude and longitude required"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Insert location update
+        cur.execute("""
+            INSERT INTO auditor_locations (auditor_id, lat, lng, accuracy, session_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user['id'], lat, lng, accuracy, session_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "success": True, 
+            "message": "Location updated",
+            "timestamp": time.time()
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/location/stop-tracking", methods=["POST"])
+def stop_location_tracking():
+    """Auditor stops tracking session"""
+    if not require_role("auditor"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        user = current_user()
+        data = request.get_json() or {}
+        session_id = data.get('session_id')
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # End the tracking session
+        if session_id:
+            cur.execute("""
+                UPDATE tracking_sessions 
+                SET end_time = CURRENT_TIMESTAMP, status = 'completed'
+                WHERE id = ? AND auditor_id = ?
+            """, (session_id, user['id']))
+        else:
+            # End any active session for this auditor
+            cur.execute("""
+                UPDATE tracking_sessions 
+                SET end_time = CURRENT_TIMESTAMP, status = 'completed'
+                WHERE auditor_id = ? AND status = 'active'
+            """, (user['id'],))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "success": True, 
+            "message": "Tracking session stopped"
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ================== ADMIN TRACKING DASHBOARD API ==================
+
+@app.route("/api/admin/tracking/active-auditors", methods=["GET"])
+def get_active_tracking_auditors():
+    """Admin gets list of auditors with active tracking"""
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Get auditors with active tracking sessions and their latest locations
+        cur.execute("""
+            SELECT 
+                a.id, a.username, 
+                ts.id as session_id, ts.start_time,
+                al.lat, al.lng, al.timestamp as last_update,
+                al.accuracy
+            FROM auditors a
+            INNER JOIN tracking_sessions ts ON a.id = ts.auditor_id
+            LEFT JOIN auditor_locations al ON (
+                a.id = al.auditor_id 
+                AND al.timestamp = (
+                    SELECT MAX(timestamp) 
+                    FROM auditor_locations al2 
+                    WHERE al2.auditor_id = a.id
+                )
+            )
+            WHERE ts.status = 'active'
+            ORDER BY al.timestamp DESC
+        """)
+        
+        rows = cur.fetchall()
+        conn.close()
+        
+        auditors = []
+        for row in rows:
+            # Calculate time since last update
+            last_update_str = "Never"
+            status_class = "offline"
+            
+            if row[6]:  # last_update timestamp exists
+                try:
+                    from datetime import datetime
+                    last_update = datetime.fromisoformat(row[6].replace('Z', '+00:00'))
+                    now = datetime.now()
+                    diff = (now - last_update).total_seconds()
+                    
+                    if diff < 60:
+                        last_update_str = f"{int(diff)}s ago"
+                        status_class = "online"
+                    elif diff < 3600:
+                        last_update_str = f"{int(diff/60)}m ago"
+                        status_class = "recent" if diff < 300 else "stale"
+                    else:
+                        last_update_str = f"{int(diff/3600)}h ago"
+                        status_class = "offline"
+                except:
+                    last_update_str = "Unknown"
+            
+            auditors.append({
+                "id": row[0],
+                "username": row[1],
+                "session_id": row[2],
+                "start_time": row[3],
+                "lat": row[4],
+                "lng": row[5],
+                "last_update": row[6],
+                "last_update_str": last_update_str,
+                "status_class": status_class,
+                "accuracy": row[7]
+            })
+        
+        return jsonify({"success": True, "auditors": auditors})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/admin/tracking/auditor/<int:auditor_id>", methods=["GET"])
+def get_auditor_current_location(auditor_id):
+    """Admin gets specific auditor's current location"""
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Get latest location for specific auditor
+        cur.execute("""
+            SELECT lat, lng, accuracy, timestamp, status
+            FROM auditor_locations 
+            WHERE auditor_id = ?
+            ORDER BY timestamp DESC 
+            LIMIT 1
+        """, (auditor_id,))
+        
+        location = cur.fetchone()
+        conn.close()
+        
+        if location:
+            return jsonify({
+                "success": True,
+                "location": {
+                    "lat": location[0],
+                    "lng": location[1],
+                    "accuracy": location[2],
+                    "timestamp": location[3],
+                    "status": location[4]
+                }
+            })
+        else:
+            return jsonify({"success": False, "error": "No location data found"})
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/admin/live-tracking")
+def admin_live_tracking():
+    """Admin live tracking dashboard page"""
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("admin_live_tracking.html", user=current_user(), google_maps_api_key=GOOGLE_MAPS_API_KEY)
+
+# ================== END LOCATION TRACKING API ==================
+
 
 # ----------------- small fixes: remove duplicate endpoints & provide helpers -----------------
 
@@ -1533,6 +1787,34 @@ def auditor_profile():
 
     return render_template('auditor_profile.html', user=user_context, errors=errors)
 
+# Add this temporary test route to app.py (remove after testing)
+'''
+@app.route("/test/location-setup")
+def test_location_setup():
+    """Test route to verify location tracking setup"""
+    if not require_role("admin"):
+        return "Unauthorized", 401
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Test if tables exist
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%location%' OR name LIKE '%tracking%'")
+        tables = cur.fetchall()
+        
+        conn.close()
+        
+        result = {
+            "tables_created": [t[0] for t in tables],
+            "status": "✅ Database setup complete" if len(tables) >= 2 else "❌ Tables missing"
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+'''
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # use clouds's port if available
     app.run(host="0.0.0.0", port=port, debug=True)

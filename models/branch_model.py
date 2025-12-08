@@ -80,3 +80,46 @@ def create_tables():
 
     conn.commit()
     conn.close()
+    
+    create_location_tracking_tables()
+
+def create_location_tracking_tables():
+    """Create tables for live location tracking"""
+    import sqlite3
+    from config import DB_PATH
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Table to store real-time auditor locations
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS auditor_locations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            auditor_id INTEGER NOT NULL,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            accuracy REAL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            session_id INTEGER,
+            status TEXT DEFAULT 'traveling',
+            FOREIGN KEY (auditor_id) REFERENCES auditors (id)
+        )
+    """)
+    
+    # Table to track tracking sessions (when auditor starts/stops tracking)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tracking_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            auditor_id INTEGER NOT NULL,
+            start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+            end_time DATETIME,
+            route_data TEXT,
+            total_distance REAL,
+            status TEXT DEFAULT 'active',
+            FOREIGN KEY (auditor_id) REFERENCES auditors (id)
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
+    print("✅ Location tracking tables created successfully")
