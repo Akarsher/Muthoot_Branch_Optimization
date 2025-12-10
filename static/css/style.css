@@ -583,46 +583,49 @@ select:-internal-list-box {
 
 /* Location Tracking Styles */
 .location-tracking-panel {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
+    background: #fff;
+    border: none;
     border-radius: 8px;
-    padding: 16px;
-    margin: 16px 0;
+    padding: 20px;
+    margin: 20px 20px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .tracking-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
 }
 
 .tracking-header h4 {
     margin: 0;
-    color: #333;
-    font-size: 16px;
+    color: #dc3545;
+    font-size: 18px;
+    font-weight: 600;
 }
 
 .tracking-status {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .tracking-status.tracking-active {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+    background: #dc3545;
+    color: #fff;
+    border: none;
 }
 
 .tracking-status.tracking-inactive {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+    background: #f8f9fa;
+    color: #dc3545;
+    border: 2px solid #dc3545;
 }
 
 .tracking-info {
@@ -657,36 +660,136 @@ select:-internal-list-box {
 }
 
 .tracking-controls {
-    margin: 12px 0;
+    margin: 20px 0;
+    display: flex;
+    gap: 20px;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
 }
 
 .tracking-controls .btn {
-    margin-right: 8px;
-    padding: 8px 16px;
+    margin: 0;
+    padding: 12px 24px;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.3s ease;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    display: inline-block;
+    width: auto;
 }
 
 .btn-success {
-    background-color: #28a745;
+    background-color: #dc3545;
     color: white;
+    border: none;
 }
 
 .btn-success:hover {
-    background-color: #218838;
+    background-color: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.btn-success:active {
+    transform: translateY(0);
 }
 
 .btn-danger {
-    background-color: #dc3545;
+    background-color: #6c757d;
     color: white;
+    border: none;
 }
 
 .btn-danger:hover {
-    background-color: #c82333;
+    background-color: #5a6268;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+.btn-danger:active {
+    transform: translateY(0);
+}
+
+/* Responsive Design for Tracking Buttons */
+@media (max-width: 992px) {
+    .tracking-controls {
+        gap: 15px;
+        flex-wrap: nowrap;
+    }
+    
+    .tracking-controls .btn {
+        padding: 10px 18px;
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 576px) {
+    .tracking-controls {
+        gap: 12px;
+        flex-wrap: nowrap;
+    }
+    
+    .tracking-controls .btn {
+        padding: 10px 14px;
+        font-size: 12px;
+    }
+}
+
+/* Location Test Buttons */
+.location-test {
+    margin: 15px 0 !important;
+    display: flex !important;
+    gap: 20px !important;
+    flex-wrap: nowrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.location-test button {
+    margin: 0 !important;
+    padding: 12px 24px !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+    width: auto !important;
+}
+
+.location-test button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.location-test button:active {
+    transform: translateY(0) !important;
+}
+
+#test-location-btn {
+    background: #dc3545 !important;
+    color: white !important;
+}
+
+#test-location-btn:hover {
+    background: #c82333 !important;
+}
+
+#use-network-btn {
+    background: #6c757d !important;
+    color: white !important;
+}
+
+#use-network-btn:hover {
+    background: #5a6268 !important;
 }
 
 .tracking-help {
@@ -715,4 +818,374 @@ select:-internal-list-box {
         width: 100%;
         margin: 4px 0;
     }
+}
+
+/* Auditor Navigation Bar */
+.auditor-navbar {
+    background: #fff;
+    border-bottom: 2px solid #e6e6e6;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+.auditor-navbar-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+}
+
+.auditor-brand {
+    display: flex;
+    align-items: center;
+}
+
+.auditor-logo {
+    height: 70px;
+    width: auto;
+    display: block;
+}
+
+.auditor-nav-links {
+    display: flex;
+    gap: 25px;
+    align-items: center;
+}
+
+.auditor-nav-links a {
+    color: #dc3545;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 6px;
+    transition: background-color 0.2s, color 0.2s;
+    font-size: 15px;
+}
+
+.auditor-nav-links a:hover {
+    background: rgba(220,53,69,0.1);
+    color: #b71c2a;
+}
+
+/* Responsive Design for Auditor Navbar */
+@media (max-width: 768px) {
+    .auditor-navbar-inner {
+        flex-direction: column;
+        gap: 15px;
+        padding: 15px;
+    }
+    
+    .auditor-nav-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+    }
+    
+    .auditor-logo {
+        height: 55px;
+    }
+}
+
+/* Branch Status Styling */
+#status {
+    background: #fff !important;
+    color: #dc3545 !important;
+    border: none !important;
+    padding: 20px !important;
+    margin: 20px 0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.15) !important;
+}
+
+#status h3 {
+    color: #dc3545 !important;
+    margin-top: 0 !important;
+    margin-bottom: 16px !important;
+    font-size: 1.3rem !important;
+    font-weight: 700 !important;
+}
+
+#status p {
+    color: #dc3545 !important;
+    margin: 10px 0 !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+}
+
+#status p.success {
+    background: #f8f9fa !important;
+    border: 1px solid #dc3545 !important;
+    padding: 10px 12px !important;
+    border-radius: 6px !important;
+    color: #dc3545 !important;
+    margin-top: 12px !important;
+}
+
+#status p.info {
+    background: #f8f9fa !important;
+    border: 1px solid #dc3545 !important;
+    padding: 10px 12px !important;
+    border-radius: 6px !important;
+    color: #dc3545 !important;
+    margin-top: 12px !important;
+}
+
+/* Button Group Styling */
+.button-group {
+    display: flex !important;
+    gap: 20px !important;
+    flex-wrap: nowrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    margin: 20px 0 !important;
+    overflow-x: auto !important;
+}
+
+.button-group button {
+    margin-right: 0 !important;
+    padding: 12px 24px !important;
+    font-size: 14px !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    display: inline-block !important;
+    width: auto !important;
+}
+
+.button-group button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.button-group button:active {
+    transform: translateY(0) !important;
+}
+
+/* Responsive Design for Buttons */
+@media (max-width: 992px) {
+    .button-group {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 15px !important;
+    }
+    
+    .button-group button {
+        flex: 0 0 auto !important;
+        padding: 10px 16px !important;
+        font-size: 13px !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .button-group {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 12px !important;
+    }
+    
+    .button-group button {
+        padding: 10px 14px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* Branch Confirmation List Styling */
+.branch-confirmation ol {
+    margin-left: 30px !important;
+    padding-left: 20px !important;
+}
+
+.branch-confirmation ol li {
+    margin-bottom: 10px !important;
+    line-height: 1.6 !important;
+}
+
+/* Branch Confirmation Box - Remove Card Styling */
+.branch-confirmation {
+    background: transparent !important;
+    border: none !important;
+    padding: 15px 0 !important;
+    margin: 20px 0 !important;
+    border-radius: 0 !important;
+}
+
+/* Branches Horizontal Layout */
+.branches-horizontal {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 15px !important;
+    margin: 15px 0 !important;
+    align-items: center !important;
+}
+
+/* Branch Checkbox Alignment */
+.branch-checkbox {
+    display: flex !important;
+    align-items: center !important;
+    background: #e8f5e8 !important;
+    border: none !important;
+    padding: 10px 14px !important;
+    border-radius: 6px !important;
+    white-space: nowrap !important;
+    gap: 8px !important;
+}
+
+.branch-checkbox input {
+    margin: 0 !important;
+    cursor: pointer !important;
+    width: 18px !important;
+    height: 18px !important;
+}
+
+.branch-checkbox label {
+    margin: 0 !important;
+    cursor: pointer !important;
+    font-weight: 500 !important;
+    color: #333 !important;
+}
+
+/* Branch Confirmation Action Buttons */
+.branch-confirmation > div:last-child {
+    display: flex !important;
+    gap: 20px !important;
+    flex-wrap: nowrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    margin-top: 20px !important;
+    overflow-x: auto !important;
+}
+
+.branch-confirmation button {
+    margin: 0 !important;
+    padding: 12px 24px !important;
+    font-size: 14px !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    display: inline-block !important;
+    width: auto !important;
+}
+
+.branch-confirmation button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.branch-confirmation button:active {
+    transform: translateY(0) !important;
+}
+
+/* Responsive Design for Branch Confirmation Buttons */
+@media (max-width: 992px) {
+    .branch-confirmation > div:last-child {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 15px !important;
+    }
+    
+    .branch-confirmation button {
+        flex: 0 0 auto !important;
+        padding: 10px 16px !important;
+        font-size: 13px !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .branch-confirmation > div:last-child {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 12px !important;
+    }
+    
+    .branch-confirmation button {
+        padding: 10px 14px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* Main Content Area Margin */
+body > .auditor-navbar,
+body > #status,
+body > .button-group,
+body > #output {
+    margin-left: 20px !important;
+    margin-right: 20px !important;
+}
+
+#output {
+    margin-left: 20px !important;
+    margin-right: 20px !important;
+}
+
+/* Location Test Section - Display test buttons horizontally */
+.location-test {
+    margin: 20px 0 !important;
+    display: flex !important;
+    gap: 20px !important;
+    flex-wrap: nowrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.location-test button {
+    margin: 0 !important;
+    padding: 12px 24px !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+    width: auto !important;
+}
+
+.location-test button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.location-test button:active {
+    transform: translateY(0) !important;
+}
+
+#test-location-btn {
+    background: #dc3545 !important;
+    color: white !important;
+}
+
+#test-location-btn:hover {
+    background: #c82333 !important;
+}
+
+#use-network-btn {
+    background: #6c757d !important;
+    color: white !important;
+}
+
+#use-network-btn:hover {
+    background: #5a6268 !important;
+}
+
+/* Test result appears below the buttons */
+#test-result {
+    text-align: center !important;
+    margin: 15px 20px !important;
+    font-size: 14px !important;
+    color: #666 !important;
+    width: 100% !important;
+    display: block !important;
+    clear: both !important;
 }

@@ -39,7 +39,7 @@
       display: flex;
       align-items: center;
       background: #e8f5e8;
-      border: 1px solid #28a745;
+      border: none;
       padding: 8px 12px;
       border-radius: 5px;
       white-space: nowrap;
@@ -117,15 +117,16 @@
     .success { color: #28a745; }
     .error { color: #dc3545; }
     .info { color: #17a2b8; }
+
 .user-nav {
   display: flex;
-  align-items: center; /* Vertically centers all items */
-  gap: 15px; /* Adds nice spacing between the left-side items */
-  margin-bottom: 10px; /* Adds some space below the bar */
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 10px;
 }
 .user-nav .save-button {
-      margin-left: auto; /* This is the magic! Pushes the button to the right */
-      margin-top: 0; /* Overrides the default 10px top margin */
+      margin-left: auto;
+      margin-top: 0;
     }
     .save-button{
       text-decoration: none;
@@ -134,22 +135,32 @@
   <script src="/static/js/location_tracker.js"></script>
 </head>
 <body data-user-role="{{ user.role if user else 'guest' }}">
-  <h1>Branch Route Planner</h1>
-  <div class="user-nav">
-    {% if user %}
-      <span>Logged in as <strong>{{ user.username }}</strong> ({{ user.role }})</span>
-       <a href="/logout">Logout</a>
-      {% if user.role == 'admin' %}  <a href="/admin">Admin</a>{% endif %}
-      {% if user.role == 'auditor' %}
-       <!-- Auditor-only profile button -->
-         <a class="save-button" href="{{ url_for('auditor_profile') }}">View Profile</a>
-    {% endif %}
-    {% else %}
-      <a href="/login">Login</a>
-    {% endif %}
-  </div>
-  
-  <div class="status-box" id="status">
+  {% if user and user.role == 'auditor' %}
+    <!-- Auditor Navigation Bar -->
+    <nav class="auditor-navbar">
+      <div class="auditor-navbar-inner">
+        <div class="auditor-brand">
+          <img src="/static/images/logo.png" alt="Logo" class="auditor-logo">
+        </div>
+        <div class="auditor-nav-links">
+          <a href="/">Route Optimization</a>
+          <a href="{{ url_for('auditor_profile') }}">Profile</a>
+          <a href="/logout">Logout</a>
+        </div>
+      </div>
+    </nav>
+  {% else %}
+    <h1>Branch Route Planner</h1>
+    <div class="user-nav">
+      {% if user %}
+        <span>Logged in as <strong>{{ user.username }}</strong> ({{ user.role }})</span>
+         <a href="/logout">Logout</a>
+        {% if user.role == 'admin' %}  <a href="/admin">Admin</a>{% endif %}
+      {% else %}
+        <a href="/login">Login</a>
+      {% endif %}
+    </div>
+  {% endif %}  <div class="status-box" id="status">
     <p>Loading status...</p>
   </div>
 
@@ -372,7 +383,7 @@
           if (routeData.type === "single_day") {
             // Restore single day route
             const route = routeData.day_route;
-            let html = `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
+            let html = `<div style="padding: 15px; margin: 10px 0; border-radius: 5px;">`;
             html += `<h3>Last Planned Route - Day ${route.day} - ${route.distance_km} km</h3>`;
             html += `<p><strong>Branches visited:</strong> ${route.branches_visited}</p>`;
             html += `<p><strong>Remaining branches:</strong> ${route.remaining_branches}</p>`;
@@ -399,7 +410,7 @@
             // Restore multi-day routes
             let html = "";
             routeData.days.forEach((d, idx) => {
-              html += `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
+              html += `<div style="padding: 15px; margin: 10px 0; border-radius: 5px;">`;
               html += `<h3>Last Planned Route - Day ${idx+1} - ${d.distance_km} km</h3>`;
               html += `<p><strong>Branches:</strong> ${d.branches_visited}</p>`;
               html += "<ol>";
@@ -452,7 +463,7 @@
 
         if (data.success && data.day_route) {
           const route = data.day_route;
-          let html = `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
+          let html = `<div style="padding: 15px; margin: 10px 0; border-radius: 5px;">`;
           html += `<h3>Day Route - ${route.distance_km} km</h3>`;
           html += `<p><strong>Branches visited:</strong> ${route.branches_visited}</p>`;
           html += `<p><strong>Remaining branches:</strong> ${route.remaining_branches}</p>`;
@@ -498,7 +509,7 @@
         
         let html = "";
         data.days.forEach((d, idx) => {
-          html += `<div style="border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px;">`;
+          html += `<div style="padding: 15px; margin: 10px 0; border-radius: 5px;">`;
           html += `<h3>Day ${idx+1} - ${d.distance_km} km</h3>`;
           html += `<p><strong>Branches:</strong> ${d.branches_visited}</p>`;
           html += "<ol>";
