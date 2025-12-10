@@ -33,6 +33,11 @@
       </div>
     </section>
 
+    <div class="card" onclick="goToLiveTracking()">
+        <h3>📍 Live Tracking</h3>
+        <p>Track auditors in real-time</p>
+    </div>
+
     <!-- Auditor area visible on landing -->
     <section id="manage-auditors" class="auditor-area">
       <div class="grid two-col">
@@ -193,6 +198,10 @@
         audMsg.className = 'error';
         audMsg.textContent = 'Failed to load auditors: ' + e.message;
       }
+    }
+
+    function goToLiveTracking() {
+        window.location.href = '/admin/live-tracking';
     }
 
     document.addEventListener('DOMContentLoaded', () => {
