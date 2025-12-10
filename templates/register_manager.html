@@ -5,41 +5,75 @@
   <title>Register Branch Manager</title>
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
-    .box { max-width: 520px; margin: 40px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
-    label { display:block; margin: 8px 0 4px; }
-    input, select { width: 100%; padding: 8px; }
-    button { margin-top: 12px; padding: 10px 16px; }
-    .msg { margin-top: 10px; font-weight: 600; }
-    .success { color: #28a745; }
-    .error { color: #dc3545; }
+    /* reuse login styles, but limit width for register form */
+    .register-wrapper { display:flex; flex-direction:column; align-items:center; padding: 28px 16px; min-height:100vh; background: linear-gradient(135deg,#fff5f5 0%, #fff 100%); }
+    .login-box { max-width:560px; width:100%; padding:22px; margin-top:16px; }
+    .box h2 { margin:0 0 10px 0; color:#E41E26; }
+    .back-link {
+      display:inline-block;
+      margin-top:12px;
+      color:#E41E26;
+      font-weight:700;
+      text-decoration:none;
+      border:1px solid rgba(228,30,38,0.08);
+      padding:8px 12px;
+      border-radius:6px;
+      transition: background .12s ease, box-shadow .12s ease;
+    }
+    .back-link:hover { background: #fff0f0; box-shadow: 0 6px 18px rgba(228,30,38,0.06); text-decoration: none; }
+    /* compact success/error messages */
+    .msg { margin-top:12px; font-weight:700; }
+    .success { color:#28a745; }
+    .error { color:#dc3545; background:#fff0f0; padding:8px; border-radius:6px; margin-top:10px; }
+    /* ensure form inputs match login appearance */
+    form.register-form { display:flex; flex-direction:column; gap:8px; }
+    label { font-weight:700; color:#333; margin-top:6px; }
+    select, input { height:44px; }
+    button[type="submit"] { margin-top:12px; }
+    @media (max-width:520px){ .login-box{ padding:16px; } .banner img{ height:100px; } }
   </style>
 </head>
 <body>
-  <div class="box">
-    <h2>Register as Branch Manager</h2>
-    {% if success %}
-      <div class="msg success">Registration saved successfully.</div>
-    {% endif %}
-    {% if error %}
-      <div class="msg error">{{ error }}</div>
-    {% endif %}
-    <form method="POST" action="/register_manager">
-      <label for="name">Name</label>
-      <input id="name" name="name" required>
-      <label for="contact_no">Contact No</label>
-      <input id="contact_no" name="contact_no" required>
-      <label for="branch_id">Select Branch</label>
-      <select id="branch_id" name="branch_id" required>
-        <option value="">-- Select --</option>
-        {% for b in branches %}
-          <option value="{{ b[0] }}">{{ b[1] }}</option>
-        {% endfor %}
-      </select>
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" required>
-      <button type="submit">Register</button>
-    </form>
-    <div style="margin-top:10px"><a href="/login">Back to Login</a></div>
+  <div class="register-wrapper">
+    <div class="banner" style="text-align:center;">
+      <img src="/static/images/Logo.png" alt="The Muthoot Group Logo" style="max-width:280px;height:auto;padding:6px 0;">
+    </div>
+
+    <div class="login-box box">
+      <h2>Register as Branch Manager</h2>
+
+      {% if success %}
+        <div class="msg success">Registration saved successfully.</div>
+      {% endif %}
+      {% if error %}
+        <div class="msg error">{{ error }}</div>
+      {% endif %}
+
+      <form class="register-form" method="POST" action="/register_manager">
+        <label for="name">Name</label>
+        <input id="name" name="name" required>
+
+        <label for="contact_no">Contact No</label>
+        <input id="contact_no" name="contact_no" required>
+
+        <label for="branch_id">Select Branch</label>
+        <select id="branch_id" name="branch_id" required>
+          <option value="">-- Select --</option>
+          {% for b in branches %}
+            <option value="{{ b[0] }}">{{ b[1] }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required>
+
+        <button type="submit">Register</button>
+      </form>
+
+      <div style="margin-top:12px; text-align:center;">
+        <a class="back-link" href="/login">← Back to Login</a>
+      </div>
+    </div>
   </div>
 </body>
 </html>

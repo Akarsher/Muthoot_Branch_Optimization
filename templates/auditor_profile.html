@@ -5,296 +5,293 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Auditor Profile</title>
   <style>
-    body {
+    /* Compact red-themed profile styling, aligned layout, remove extra boxes */
+    :root{
+      --accent:#c62828;
+      --accent-600:#b71c1c;
+      --muted:#666;
+      --card-bg:#fff;
+    }
+
+    body{
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      background: #f4f6f9;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      margin:0;
+      background: #fff5f5;
+      color:#111;
     }
 
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      padding: 30px 40px;
-      max-width: 700px;
-      width: 90%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 25px;
+    .page-wrapper{
+      padding: 92px 16px 40px;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
     }
 
-    h2 {
-      text-align: center;
-      color: #333;
-      font-size: 1.8rem;
-      border-bottom: 3px solid #007bff;
-      padding-bottom: 6px;
-      margin-bottom: 0;
+    .card{
+      width:100%;
+      max-width:800px;
+      background:var(--card-bg);
+      border-radius:10px;
+      padding:18px;
+      box-shadow:0 6px 18px rgba(198,40,40,0.06);
+      border-left:4px solid var(--accent);
+      box-sizing:border-box;
+      position:relative; /* allow fine control if needed */
+    }
+
+    .card h2{
+      margin:0 0 8px 0;
+      color:var(--accent-600);
+      font-size:1.25rem;
+    }
+
+    .profile-section{
+      display:flex;
+      gap:20px;
+      align-items:flex-start; /* avatar aligned from top; avatar will be nudged down */
+      flex-wrap:wrap;
+    }
+
+    .avatar-container{
+      flex:0 0 160px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:8px;
+      margin-top:18px; /* push avatar a bit down */
+    }
+
+    .avatar{
+      width:120px;
+      height:120px;
+      border-radius:50%;
+      object-fit:cover;
+      border:3px solid rgba(198,40,40,0.12);
+    }
+
+    .edit-icon{ top:-30px; left:6px; }
+    input[type="file"]{ display:none; }
+
+    /* Form layout: use grid for consistent label/input alignment */
+    .details{ flex:1; display:block; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 12px 18px;
+      align-items: center;
       width: 100%;
     }
 
-    .profile-section {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      width: 100%;
-      gap: 40px;
-      flex-wrap: wrap;
-    }
-
-    .avatar-container {
-      position: relative;
-      display: inline-block;
-    }
-
-    .avatar {
-      width: 140px;
-      height: 140px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 3px solid #e0e0e0;
-      background: #f0f0f0;
-    }
-
-    .edit-icon {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      background: #007bff;
-      color: #fff;
-      border-radius: 50%;
-      width: 34px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      border: 2px solid #fff;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      font-size: 16px;
-      transition: 0.2s ease;
-    }
-
-    .edit-icon:hover {
-      background: #0056b3;
-      transform: scale(1.05);
-    }
-
-    input[type="file"] { display: none; }
-
-    .details {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 250px;
-    }
-
-    .row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+    .row { display: contents; } /* keep markup compatibility */
 
     .label {
-      width: 100px;
+      justify-self: end;
+      text-align: right;
+      color: var(--muted);
       font-weight: 600;
-      color: #555;
-      text-align: left;
+      font-size: 0.95rem;
+      padding-right: 6px;
     }
 
     .value {
-      flex: 1;
-      max-width: 200px;
-    }
-
-    .value input {
-      width: 100%;
-      padding: 6px 8px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      transition: border-color 0.2s;
-    }
-
-    .value input:focus {
-      outline: none;
-      border-color: #007bff;
-      box-shadow: 0 0 3px rgba(0,123,255,0.2);
-    }
-
-    .actions {
-      margin-top: 25px;
-      display: flex;
-      justify-content: center;
-      gap: 12px;
+      justify-self: start;
       width: 100%;
     }
 
-    .btn {
-      padding: 9px 16px;
-      border: none;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 0.95rem;
-      transition: 0.2s ease;
+    /* Inputs: consistent height/appearance */
+    .value input[type="text"],
+    .value input[type="email"],
+    .value input[type="tel"]{
+      width:100%;
+      height:40px;
+      padding:8px 12px;
+      border:1px solid #e6e6e6;
+      border-radius:8px;
+      background:#fff;
+      box-shadow:none;
+      outline:none;
+      font-size:0.97rem;
+      box-sizing:border-box;
+    }
+    .value input:focus{ border-color:var(--accent); box-shadow:0 6px 18px rgba(198,40,40,0.06); }
+
+    /* Actions/buttons: right aligned, identical size and baseline aligned */
+    .actions{
+      display:flex;
+      gap:12px;
+      justify-content:flex-end;
+      align-items:center;
+      width:100%;
+      margin-top:10px;
+      padding-top:6px;
+      box-sizing:border-box;
     }
 
-    .btn-primary {
-      background: #007bff;
-      color: #fff;
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      padding:10px 14px;
+      height:44px;
+      width:160px;          /* fixed equal width for both buttons */
+      border-radius:8px;
+      font-weight:600;
+      border:0;
+      cursor:pointer;
+      text-decoration:none;
+      line-height:1;
+      box-sizing:border-box;
+      margin:0;
+      background-clip:padding-box;
+      vertical-align:middle;
     }
 
-    .btn-primary:hover { background: #0056b3; }
-
-    .btn-secondary {
-      background: #6c757d;
-      color: #fff;
-      text-decoration: none;
+    .btn-primary{
+      background:var(--accent);
+      color:#fff;
+      border:1px solid rgba(0,0,0,0.02);
     }
 
-    .btn-secondary:hover { background: #565e64; }
+    .btn-secondary{
+      background:transparent;
+      color:var(--accent-600);
+      border:1px solid rgba(198,40,40,0.08);
+    }
 
-    .error { color: #b00020; font-size: 0.9rem; margin-top: 6px; }
+    @media (max-width:420px){
+      .actions{ flex-direction:column-reverse; gap:8px; align-items:stretch; }
+      .btn{ width:100%; }
+    }
 
-    @media (max-width: 600px) {
-      .profile-section {
-        flex-direction: column;
-        gap: 20px;
+    .error{ color:#b00020; font-size:0.85rem; margin-top:6px; display:block; }
+
+    /* Responsive: switch to stacked layout on small screens */
+    @media (max-width:720px){
+      .form-grid{
+        grid-template-columns: 1fr;
+        gap:8px 8px;
       }
-
-      .details {
-        align-items: center;
-      }
-
-      .row {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .label {
-        text-align: left;
-      }
+      .label{ justify-self: start; text-align:left; padding-right:0; }
+      .page-wrapper{ padding-top: 120px; }
+      .profile-section { flex-direction: column; gap:14px; align-items:center; }
+      .details { width:100%; }
+      .row { flex-direction: column; align-items:flex-start; gap:6px; }
+      .label { text-align:left; width:100%; }
+      .avatar { width:120px; height:120px; }
+      .card { padding:20px; }
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>Auditor Profile</h2>
-
-    <form id="profileForm" method="post" enctype="multipart/form-data" novalidate>
-      <div class="profile-section">
-        <div class="avatar-container">
-          {% set avatar_path = user.get('avatar') %}
-          {% set avatar_url = url_for('static', filename=avatar_path) if avatar_path else url_for('static', filename='images/user.png') %}
-          <img id="avatarPreview" src="{{ avatar_url }}" class="avatar" alt="avatar">
-          <div class="edit-icon" id="editIcon" title="Change picture">✏️</div>
-          <input id="avatar" name="avatar" type="file" accept="image/*">
+  {% include '_navbar.html' %}
+  <div class="page-wrapper">
+    <div class="card">
+     <h2>Auditor Profile</h2>
+ 
+     <form id="profileForm" method="post" enctype="multipart/form-data" novalidate>
+       <div class="profile-section">
+         <div class="avatar-container">
+           {% set avatar_path = user.get('avatar') %}
+           {% set avatar_url = url_for('static', filename=avatar_path) if avatar_path else url_for('static', filename='images/user.png') %}
+           <img id="avatarPreview" src="{{ avatar_url }}" class="avatar" alt="avatar">
+           <div class="edit-icon" id="editIcon" title="Change picture">✏️</div>
+           <input id="avatar" name="avatar" type="file" accept="image/*">
+         </div>
+ 
+         <div class="details">
+           <div class="form-grid">
+             <div class="label">Username:</div>
+             <div class="value">{{ user.get('username','') }}</div>
+ 
+             <div class="label">Full name:</div>
+             <div class="value">
+               <input id="name" name="name" type="text" value="{{ user.get('name','') }}">
+             </div>
+ 
+             <div class="label">Email:</div>
+             <div class="value">
+               <input id="email" name="email" type="email" value="{{ user.get('email','') }}">
+             </div>
+ 
+             <div class="label">Phone:</div>
+             <div class="value">
+               <input id="phone" name="phone" type="tel" value="{{ user.get('phone','') }}">
+             </div>
+ 
+             <div class="label">Role:</div>
+             <div class="value">{{ user.get('role','auditor') }}</div>
+           </div>
+         </div>
+       </div>
+ 
+       <div class="actions" role="group" aria-label="Profile actions">
+         <!-- Back button removed -->
+         <button type="submit" class="btn btn-primary">Save Profile</button>
         </div>
-
-        <div class="details">
-          <div class="row">
-            <div class="label">Username:</div>
-            <div class="value">{{ user.get('username','') }}</div>
-          </div>
-
-          <div class="row">
-            <div class="label">Full name:</div>
-            <div class="value">
-              <input id="name" name="name" type="text" value="{{ user.get('name','') }}">
-              {% if errors and errors.get('name') %}<div class="error">{{ errors.get('name') }}</div>{% endif %}
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="label">Email:</div>
-            <div class="value">
-              <input id="email" name="email" type="email" value="{{ user.get('email','') }}">
-              {% if errors and errors.get('email') %}<div class="error">{{ errors.get('email') }}</div>{% endif %}
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="label">Phone:</div>
-            <div class="value">
-              <input id="phone" name="phone" type="tel" value="{{ user.get('phone','') }}">
-              {% if errors and errors.get('phone') %}<div class="error">{{ errors.get('phone') }}</div>{% endif %}
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="label">Role:</div>
-            <div class="value">{{ user.get('role','') }}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="actions">
-        <a class="btn btn-secondary" href="{{ url_for('index') }}">Back</a>
-        <button type="submit" class="btn btn-primary">Save Profile</button>
-      </div>
-    </form>
+     </form>
+    </div>
   </div>
-
-<script>
-  const avatarInput = document.getElementById('avatar');
-  const avatarPreview = document.getElementById('avatarPreview');
-  const editIcon = document.getElementById('editIcon');
-  const form = document.getElementById('profileForm');
-
-  editIcon.addEventListener('click', () => avatarInput.click());
-  avatarInput.addEventListener('change', (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    avatarPreview.src = URL.createObjectURL(f);
-  });
-
-  // Client-side validation -> show errors in an alert
-  function isNameValid(s) {
-    return /^[A-Za-z ]+$/.test(s);
-  }
-  function isEmailValid(s) {
-    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
-  }
-  function digitCount(s) {
-    return (s||'').replace(/\D/g,'').length;
-  }
-
-  form.addEventListener('submit', (e) => {
-    const name = document.getElementById('name').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-
-    const errors = [];
-
-    // Fields are optional — validate only if provided
-    if (name) {
-      if (!isNameValid(name)) errors.push("Name must contain only letters and spaces.");
-      else if (name.length < 2) errors.push("Name is too short.");
-    }
-
-    if (email) {
-      if (!isEmailValid(email)) errors.push("Invalid email address.");
-    }
-
-    if (phone) {
-      const d = digitCount(phone);
-      if (d !== 10) errors.push("Phone number must have exactly 10 digits.");
-    }
-
-    if (errors.length) {
-      e.preventDefault();
-      alert(errors.join("\\n"));
-      return false;
-    }
-    return true;
-  });
-</script>
-</body>
-</html>
+ 
+ <script>
+   const avatarInput = document.getElementById('avatar');
+   const avatarPreview = document.getElementById('avatarPreview');
+   const editIcon = document.getElementById('editIcon');
+   const form = document.getElementById('profileForm');
+ 
+   // Preview avatar image before upload
+   editIcon.addEventListener('click', () => {
+     avatarInput.click();
+   });
+ 
+   avatarInput.addEventListener('change', () => {
+     const file = avatarInput.files[0];
+     if (file) {
+       const reader = new FileReader();
+       reader.onload = () => {
+         avatarPreview.src = reader.result;
+       }
+       reader.readAsDataURL(file);
+     }
+   });
+ 
+   // Form validation
+   form.addEventListener('submit', (e) => {
+     let isValid = true;
+     e.preventDefault();
+ 
+     // Clear previous errors
+     document.querySelectorAll('.error').forEach(el => el.textContent = '');
+ 
+     // Validate name
+     const name = form.name.value.trim();
+     if (!name) {
+       isValid = false;
+       document.getElementById('nameError').textContent = 'Name is required';
+     }
+ 
+     // Validate email
+     const email = form.email.value.trim();
+     if (!email) {
+       isValid = false;
+       document.getElementById('emailError').textContent = 'Email is required';
+     } else if (!/\S+@\S+\.\S+/.test(email)) {
+       isValid = false;
+       document.getElementById('emailError').textContent = 'Email is invalid';
+     }
+ 
+     // Validate phone
+     const phone = form.phone.value.trim();
+     if (!phone) {
+       isValid = false;
+       document.getElementById('phoneError').textContent = 'Phone number is required';
+     }
+ 
+     if (isValid) {
+       form.submit();
+     }
+   });
+ </script>
+ </body>
+ </html>

@@ -1,0 +1,43 @@
+<!-- <nav class="admin-navbar" role="navigation" aria-label="Main">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <div class="admin-navbar-inner">
+    <div class="admin-brand">
+      <a href="{{ url_for('route_optimization') }}" class="brand-link">
+        <img src="{{ url_for('static', filename='images/Logo2.png') }}" alt="Milkrun" class="admin-logo" style="height:32px;">
+      </a>
+    </div>
+
+    <div class="admin-nav-links" role="menubar" aria-label="Primary">
+      {% if session.get('role') == 'manager' %}
+        <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
+        <a class="nav-link" href="/manager/profile">View Profile</a>
+        <a class="nav-link" href="/manager/branch/edit">Edit Branch Details</a>
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+      {% else %}
+        <a class="nav-link" href="{{ url_for('route_optimization') }}">Route Optimization</a>
+        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>  -->
+
+
+
+<!-- manager navbar: links point to the exact pages requested -->
+<nav class="admin-navbar" role="navigation" aria-label="Manager navigation">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <div class="admin-navbar-inner">
+    <div class="admin-brand">
+      <a href="{{ url_for('manager_dashboard') }}" class="brand-link">
+        <img src="{{ url_for('static', filename='images/Logo2.png') }}" alt="Logo" class="admin-logo">
+      </a>
+    </div>
+
+    <div class="admin-nav-links" role="menubar" aria-label="Primary">
+      <a class="nav-link" href="{{ url_for('manager_dashboard') }}">Home</a>
+      <a class="nav-link" href="/manager/viewprofile.html">View Profile</a>
+      <a class="nav-link" href="/manager/edit_branchdetails.html">Edit Branch Details</a>
+      <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+  </div>
+</nav>
