@@ -1,9 +1,11 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Branch Route Planner</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  
   <style>
     .status-box {
       background: #f0f8ff;
@@ -129,8 +131,9 @@
       text-decoration: none;
     }
   </style>
+  <script src="/static/js/location_tracker.js"></script>
 </head>
-<body>
+<body data-user-role="{{ user.role if user else 'guest' }}">
   <h1>Branch Route Planner</h1>
   <div class="user-nav">
     {% if user %}
@@ -158,6 +161,15 @@
   </div>
 
   <div id="output"></div>
+
+  <main class="content-area">
+    <!-- Location tracking will be inserted here automatically -->
+    
+    <!-- Your existing route planning interface -->
+    <div class="route-planning">
+      <!-- ... your existing content ... -->
+    </div>
+  </main>
 
   <script>
     async function saveVisits(branchIds, dayNumber) {
