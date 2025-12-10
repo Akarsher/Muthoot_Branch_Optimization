@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Auditor Tracking - Admin</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry"></script>
+    <style>
+        .tracking-dashboard {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            height: calc(100vh - 120px);
+            gap: 20px;
+            margin: 20px;
+        }
+        
+        .auditor-sidebar {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        
+        .map-container {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #live-map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .auditor-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .auditor-card:hover {
+            border-color: #007bff;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .auditor-card.selected {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+        
+        .auditor-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-online { background: #d4edda; color: #155724; }
+        .status-recent { background: #fff3cd; color: #856404; }
+        .status-stale { background: #f8d7da; color: #721c24; }
+        .status-offline { background: #e2e3e5; color: #383d41; }
+        
+        .refresh-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .auto-refresh {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .map-legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        @media (max-width: 768px) {
+            .tracking-dashboard {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .auditor-sidebar {
+                order: 2;
+                max-height: 300px;
+            }
+            
+            .map-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "_admin_nav.html" %}
+    
+    <header style="padding: 16px 20px; border-bottom: 1px solid #dee2e6;">
+        <h2>📍 Live Auditor Tracking</h2>
+        <p style="margin: 4px 0 0 0; color: #666;">Real-time location monitoring of active auditors</p>
+    </header>
+
+    <div class="tracking-dashboard">
+        <!-- Auditor Sidebar -->
+        <div class="auditor-sidebar">
+            <div class="refresh-controls">
+                <h4 style="margin: 0;">Active Auditors</h4>
+                <div class="auto-refresh">
+                    <span id="refresh-status">🔄 Auto-refresh: ON</span>
+                </div>
+            </div>
+            
+            <div id="auditor-list">
+                <div style="text-align: center; color: #666; padding: 20px;">
+                    📡 Loading auditor locations...
+                </div>
+            </div>
+            
+            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #dee2e6;">
+                <button id="refresh-btn" class="btn" style="width: 100%; background: #17a2b8; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer;">
+                    🔄 Refresh Now
+                </button>
+                <button id="toggle-auto-refresh" class="btn" style="width: 100%; background: #6c757d; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; margin-top: 8px;">
+                    ⏸️ Pause Auto-Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div class="map-container">
+            <div id="live-map"></div>
+            
+            <div class="map-legend">
+                <div><strong>📍 Auditor Status</strong></div>
+                <div>🟢 Online (< 1 min)</div>
+                <div>🟡 Recent (< 5 min)</div>
+                <div>🟠 Stale (< 15 min)</div>
+                <div>🔴 Offline (> 15 min)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class LiveTrackingDashboard {
+            constructor() {
+                this.map = null;
+                this.markers = {};
+                this.selectedAuditor = null;
+                this.autoRefresh = true;
+                this.refreshInterval = 30000; // 30 seconds
+                this.refreshTimer = null;
+                
+                this.init();
+            }
+            
+            init() {
+                this.initMap();
+                this.setupEventListeners();
+                this.loadAuditorLocations();
+                this.startAutoRefresh();
+            }
+            
+            initMap() {
+                // Default center (you can change this to your city)
+                const defaultCenter = { lat: 12.9716, lng: 77.5946 }; // Bangalore
+                
+                this.map = new google.maps.Map(document.getElementById('live-map'), {
+                    zoom: 11,
+                    center: defaultCenter,
+                    mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    styles: [
+                        {
+                            featureType: 'poi',
+                            elementType: 'labels',
+                            stylers: [{ visibility: 'off' }]
+                        }
+                    ]
+                });
+                
+                console.log('✅ Map initialized');
+            }
+            
+            setupEventListeners() {
+                document.getElementById('refresh-btn').addEventListener('click', () => {
+                    this.loadAuditorLocations();
+                });
+                
+                document.getElementById('toggle-auto-refresh').addEventListener('click', () => {
+                    this.toggleAutoRefresh();
+                });
+            }
+            
+            async loadAuditorLocations() {
+                try {
+                    document.getElementById('refresh-status').textContent = '🔄 Refreshing...';
+                    
+                    const response = await fetch('/api/admin/tracking/active-auditors');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.updateAuditorList(data.auditors);
+                        this.updateMapMarkers(data.auditors);
+                        
+                        const count = data.auditors.length;
+                        document.getElementById('refresh-status').textContent = 
+                            `🔄 Auto-refresh: ${this.autoRefresh ? 'ON' : 'OFF'} (${count} active)`;
+                    } else {
+                        console.error('Failed to load auditor locations:', data.error);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error loading auditor locations:', error);
+                    document.getElementById('refresh-status').textContent = '❌ Refresh failed';
+                }
+            }
+            
+            updateAuditorList(auditors) {
+                const listEl = document.getElementById('auditor-list');
+                
+                if (auditors.length === 0) {
+                    listEl.innerHTML = `
+                        <div style="text-align: center; color: #666; padding: 20px;">
+                            📍 No active auditors<br>
+                            <small>Auditors will appear here when they start live tracking</small>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                listEl.innerHTML = auditors.map(auditor => {
+                    const hasLocation = auditor.lat && auditor.lng;
+                    const statusIcon = this.getStatusIcon(auditor.status_class);
+                    
+                    return `
+                        <div class="auditor-card" onclick="dashboard.focusAuditor('${auditor.id}')" 
+                             id="auditor-${auditor.id}">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <strong>${auditor.username}</strong>
+                                <span class="auditor-status status-${auditor.status_class}">
+                                    ${statusIcon} ${auditor.status_class}
+                                </span>
+                            </div>
+                            
+                            ${hasLocation ? `
+                                <div style="font-size: 12px; color: #666; font-family: monospace;">
+                                    📍 ${auditor.lat.toFixed(4)}, ${auditor.lng.toFixed(4)}
+                                </div>
+                                <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                                    🕐 ${auditor.last_update_str} | ±${Math.round(auditor.accuracy || 0)}m
+                                </div>
+                            ` : `
+                                <div style="font-size: 12px; color: #666;">
+                                    📡 Starting session... No location yet
+                                </div>
+                            `}
+                            
+                            <div style="font-size: 10px; color: #999; margin-top: 4px;">
+                                Session: ${auditor.session_id} | Started: ${new Date(auditor.start_time).toLocaleTimeString()}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            updateMapMarkers(auditors) {
+                // Clear existing markers
+                Object.values(this.markers).forEach(marker => marker.setMap(null));
+                this.markers = {};
+                
+                const bounds = new google.maps.LatLngBounds();
+                let hasValidLocations = false;
+                
+                auditors.forEach(auditor => {
+                    if (auditor.lat && auditor.lng) {
+                        const position = { lat: auditor.lat, lng: auditor.lng };
+                        const statusIcon = this.getStatusIcon(auditor.status_class);
+                        
+                        const marker = new google.maps.Marker({
+                            position: position,
+                            map: this.map,
+                            title: `${auditor.username} (${auditor.last_update_str})`,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 8,
+                                fillColor: this.getStatusColor(auditor.status_class),
+                                fillOpacity: 0.8,
+                                strokeWeight: 2,
+                                strokeColor: '#ffffff'
+                            }
+                        });
+                        
+                        // Info window
+                        const infoWindow = new google.maps.InfoWindow({
+                            content: `
+                                <div style="min-width: 200px;">
+                                    <h4 style="margin: 0 0 8px 0;">${statusIcon} ${auditor.username}</h4>
+                                    <div style="font-size: 12px; color: #666;">
+                                        📍 ${auditor.lat.toFixed(6)}, ${auditor.lng.toFixed(6)}<br>
+                                        📶 Accuracy: ±${Math.round(auditor.accuracy || 0)}m<br>
+                                        🕐 Last update: ${auditor.last_update_str}<br>
+                                        🎯 Session: ${auditor.session_id}
+                                    </div>
+                                    <div style="margin-top: 8px;">
+                                        <a href="https://www.google.com/maps?q=${auditor.lat},${auditor.lng}" 
+                                           target="_blank" style="color: #007bff; font-size: 11px;">
+                                           🗺️ View on Google Maps
+                                        </a>
+                                    </div>
+                                </div>
+                            `
+                        });
+                        
+                        marker.addListener('click', () => {
+                            infoWindow.open(this.map, marker);
+                            this.selectAuditor(auditor.id);
+                        });
+                        
+                        this.markers[auditor.id] = marker;
+                        bounds.extend(position);
+                        hasValidLocations = true;
+                    }
+                });
+                
+                // Auto-fit map to show all auditors
+                if (hasValidLocations) {
+                    this.map.fitBounds(bounds);
+                    
+                    // Prevent excessive zoom for single auditor
+                    google.maps.event.addListenerOnce(this.map, 'bounds_changed', () => {
+                        if (this.map.getZoom() > 16) {
+                            this.map.setZoom(16);
+                        }
+                    });
+                }
+            }
+            
+            focusAuditor(auditorId) {
+                this.selectAuditor(auditorId);
+                
+                const marker = this.markers[auditorId];
+                if (marker) {
+                    this.map.panTo(marker.getPosition());
+                    this.map.setZoom(16);
+                    
+                    // Trigger info window
+                    google.maps.event.trigger(marker, 'click');
+                }
+            }
+            
+            selectAuditor(auditorId) {
+                // Clear previous selection
+                document.querySelectorAll('.auditor-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                
+                // Select new auditor
+                const auditorCard = document.getElementById(`auditor-${auditorId}`);
+                if (auditorCard) {
+                    auditorCard.classList.add('selected');
+                    this.selectedAuditor = auditorId;
+                }
+            }
+            
+            getStatusIcon(statusClass) {
+                switch(statusClass) {
+                    case 'online': return '🟢';
+                    case 'recent': return '🟡';
+                    case 'stale': return '🟠';
+                    default: return '🔴';
+                }
+            }
+            
+            getStatusColor(statusClass) {
+                switch(statusClass) {
+                    case 'online': return '#28a745';
+                    case 'recent': return '#ffc107';
+                    case 'stale': return '#fd7e14';
+                    default: return '#dc3545';
+                }
+            }
+            
+            startAutoRefresh() {
+                if (this.refreshTimer) {
+                    clearInterval(this.refreshTimer);
+                }
+                
+                if (this.autoRefresh) {
+                    this.refreshTimer = setInterval(() => {
+                        this.loadAuditorLocations();
+                    }, this.refreshInterval);
+                }
+            }
+            
+            toggleAutoRefresh() {
+                this.autoRefresh = !this.autoRefresh;
+                const btn = document.getElementById('toggle-auto-refresh');
+                
+                if (this.autoRefresh) {
+                    btn.textContent = '⏸️ Pause Auto-Refresh';
+                    btn.style.background = '#6c757d';
+                    this.startAutoRefresh();
+                } else {
+                    btn.textContent = '▶️ Resume Auto-Refresh';
+                    btn.style.background = '#28a745';
+                    clearInterval(this.refreshTimer);
+                }
+                
+                this.loadAuditorLocations(); // Update status display
+            }
+        }
+        
+        // Initialize dashboard when page loads
+        let dashboard;
+        document.addEventListener('DOMContentLoaded', function() {
+            dashboard = new LiveTrackingDashboard();
+            console.log('🎯 Live tracking dashboard ready');
+        });
+    </script>
+
+    <script src="/static/js/enhanced_tracking.js"></script>
+    <script>
+        // Initialize enhanced features
+        let enhancedFeatures;
+        
+        // Override the existing loadAuditorLocations method
+        const originalLoadAuditorLocations = LiveTrackingDashboard.prototype.loadAuditorLocations;
+        LiveTrackingDashboard.prototype.loadAuditorLocations = async function() {
+            await originalLoadAuditorLocations.call(this);
+            
+            // If enhanced features are enabled, run checks
+            if (enhancedFeatures) {
+                const response = await fetch('/api/admin/tracking/active-auditors');
+                const data = await response.json();
+                if (data.success) {
+                    enhancedFeatures.checkForAlerts(data.auditors);
+                    enhancedFeatures.updateRouteTrails(data.auditors);
+                    enhancedFeatures.updateAnalytics(data.auditors);
+                }
+            }
+        };
+        
+        // Initialize enhanced features after dashboard loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                if (window.dashboard) {
+                    enhancedFeatures = new EnhancedTrackingFeatures(dashboard);
+                    console.log('🚀 Enhanced tracking features enabled');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

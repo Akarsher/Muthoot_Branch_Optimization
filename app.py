@@ -1585,8 +1585,94 @@ def admin_live_tracking():
         return redirect(url_for("login"))
     return render_template("admin_live_tracking.html", user=current_user(), google_maps_api_key=GOOGLE_MAPS_API_KEY)
 
-# ================== END LOCATION TRACKING API ==================
-
+# API endpoint to get active auditors for the dashboard
+@app.route("/api/admin/tracking/active-auditors")
+def get_active_auditors():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Get active tracking sessions with latest locations
+        cur.execute("""
+            SELECT DISTINCT
+                ts.id as session_id,
+                ts.auditor_id,
+                ts.start_time,
+                ts.end_time,
+                a.username,
+                al.lat,
+                al.lng,
+                al.accuracy,
+                al.timestamp as last_update,
+                ROW_NUMBER() OVER (PARTITION BY ts.auditor_id ORDER BY al.timestamp DESC) as rn
+            FROM tracking_sessions ts
+            JOIN auditors a ON ts.auditor_id = a.id
+            LEFT JOIN auditor_locations al ON ts.id = al.session_id
+            WHERE ts.end_time IS NULL  -- Only active sessions
+            ORDER BY ts.start_time DESC
+        """)
+        
+        results = cur.fetchall()
+        conn.close()
+        
+        # Process results to get latest location per auditor
+        auditors_data = {}
+        for row in results:
+            auditor_id = row[1]
+            if auditor_id not in auditors_data or row[-1] == 1:  # rn = 1 means latest
+                auditor_data = {
+                    "id": auditor_id,
+                    "session_id": row[0],
+                    "username": row[4],
+                    "start_time": row[2],
+                    "lat": row[5],
+                    "lng": row[6],
+                    "accuracy": row[7],
+                    "last_update": row[8]
+                }
+                
+                # Calculate status based on last update time
+                if auditor_data["last_update"]:
+                    from datetime import datetime, timedelta
+                    last_update = datetime.fromisoformat(auditor_data["last_update"].replace('Z', '+00:00'))
+                    now = datetime.now()
+                    time_diff = (now - last_update.replace(tzinfo=None)).total_seconds()
+                    
+                    if time_diff < 60:  # Less than 1 minute
+                        status_class = "online"
+                        status_str = f"{int(time_diff)}s ago"
+                    elif time_diff < 300:  # Less than 5 minutes
+                        status_class = "recent"
+                        status_str = f"{int(time_diff//60)}m ago"
+                    elif time_diff < 900:  # Less than 15 minutes
+                        status_class = "stale"
+                        status_str = f"{int(time_diff//60)}m ago"
+                    else:
+                        status_class = "offline"
+                        status_str = f"{int(time_diff//60)}m ago"
+                else:
+                    status_class = "offline"
+                    status_str = "No location"
+                
+                auditor_data["status_class"] = status_class
+                auditor_data["last_update_str"] = status_str
+                
+                auditors_data[auditor_id] = auditor_data
+        
+        active_auditors = list(auditors_data.values())
+        
+        return jsonify({
+            "success": True,
+            "auditors": active_auditors,
+            "count": len(active_auditors)
+        })
+        
+    except Exception as e:
+        print(f"Error getting active auditors: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # ----------------- small fixes: remove duplicate endpoints & provide helpers -----------------
 
