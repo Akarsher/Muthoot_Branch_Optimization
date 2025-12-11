@@ -33,7 +33,7 @@
       </div>
     </section>
 
-    <div class="card" onclick="goToLiveTracking()">
+    <div class="card live-tracking-card" onclick="goToLiveTracking()">
         <h3>📍 Live Tracking</h3>
         <p>Track auditors in real-time</p>
     </div>
@@ -81,6 +81,7 @@
                         <th>Username</th>
                         <th>Status</th>
                         <th>Created</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="audTable"></tbody>
@@ -182,7 +183,7 @@
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed');
         if (data.items.length === 0) {
-            table.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">No auditors found.</td></tr>';
+            table.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No auditors found.</td></tr>';
         } else {
           data.items.forEach(a => {
             const tr = document.createElement('tr');
@@ -190,6 +191,9 @@
                 <td>${a.username}</td>
                 <td><span class="status-${a.active ? 'active' : 'inactive'}">${a.active ? 'Active' : 'Inactive'}</span></td>
                 <td>${a.created_at || ''}</td>
+                <td class="aud-actions">
+                    <button class="btn-delete" onclick="deleteAuditor('${a.username}')">Delete</button>
+                </td>
             `;
             table.appendChild(tr);
           });
@@ -210,6 +214,29 @@
       const visitedCard = document.getElementById('visitedCard');
       if (visitedCard) visitedCard.addEventListener('click', toggleVisitedList);
     });
+
+    // Delete auditor
+    async function deleteAuditor(username) {
+      if (!confirm(`Delete auditor "${username}"?`)) return;
+      const audMsg = document.getElementById('audMsg');
+      audMsg.textContent = '';
+      audMsg.className = '';
+      try {
+        const res = await fetch('/admin/delete-auditor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to delete auditor');
+        audMsg.className = 'success';
+        audMsg.textContent = data.message || 'Auditor deleted';
+        loadAuditors();
+      } catch (err) {
+        audMsg.className = 'error';
+        audMsg.textContent = 'Delete failed: ' + err.message;
+      }
+    }
   </script>
 </body>
 </html>

@@ -1334,6 +1334,32 @@ def api_admin_manager_delete(mid):
         return jsonify({"success": False, "error": str(e)})
 
 
+@app.route("/admin/delete-auditor", methods=["POST"])
+def admin_delete_auditor():
+    if not require_role("admin"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+    if not username:
+        return jsonify({"success": False, "error": "Username is required"}), 400
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM auditors WHERE username = ?", (username,))
+        conn.commit()
+        deleted = cur.rowcount
+        conn.close()
+        if deleted == 0:
+            return jsonify({"success": False, "error": "Auditor not found"}), 404
+        return jsonify({"success": True, "message": f"Auditor '{username}' deleted"})
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ================== LIVE LOCATION TRACKING API ==================
 
 @app.route("/api/location/start-tracking", methods=["POST"])
@@ -1611,7 +1637,7 @@ def get_active_auditors():
             FROM tracking_sessions ts
             JOIN auditors a ON ts.auditor_id = a.id
             LEFT JOIN auditor_locations al ON ts.id = al.session_id
-            WHERE ts.end_time IS NULL  -- Only active sessions
+            WHERE ts.end_time IS NULL  # Only active sessions
             ORDER BY ts.start_time DESC
         """)
         
@@ -1901,6 +1927,12 @@ def test_location_setup():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 '''
+@app.route("/admin/route-optimization")
+def admin_route_optimization():
+    if not require_role("admin"):
+        return redirect(url_for("login"))
+    return render_template("index.html", user=current_user())
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # use clouds's port if available
     app.run(host="0.0.0.0", port=port, debug=True)

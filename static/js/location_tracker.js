@@ -601,9 +601,9 @@ class LocationTracker {
 // Auto-initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     // Only initialize for auditors
-    const userRole = document.body.getAttribute('data-user-role');
-    if (userRole === 'auditor' || window.location.pathname.includes('auditor')) {
-        window.locationTracker = new LocationTracker();
-        console.log('🎯 Location tracking ready for auditor');
-    }
+    const role = (document.body.dataset.userRole || '').toLowerCase();
+    if (!['auditor', 'admin'].includes(role)) return;
+    
+    window.locationTracker = new LocationTracker();
+    console.log('🎯 Location tracking ready for auditor');
 });
