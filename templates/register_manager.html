@@ -4,18 +4,9 @@
   <meta charset="utf-8">
   <title>Register Branch Manager</title>
   <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    .box { max-width: 520px; margin: 40px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
-    label { display:block; margin: 8px 0 4px; }
-    input, select { width: 100%; padding: 8px; }
-    button { margin-top: 12px; padding: 10px 16px; }
-    .msg { margin-top: 10px; font-weight: 600; }
-    .success { color: #28a745; }
-    .error { color: #dc3545; }
-  </style>
 </head>
-<body>
-  <div class="box">
+<body class="register-page">
+  <div class="register-card">
     <h2>Register as Branch Manager</h2>
     {% if success %}
       <div class="msg success">Registration saved successfully.</div>
@@ -26,8 +17,10 @@
     <form method="POST" action="/register_manager">
       <label for="name">Name</label>
       <input id="name" name="name" required>
+
       <label for="contact_no">Contact No</label>
       <input id="contact_no" name="contact_no" required>
+
       <label for="branch_id">Select Branch</label>
       <select id="branch_id" name="branch_id" required>
         <option value="">-- Select --</option>
@@ -35,11 +28,13 @@
           <option value="{{ b[0] }}">{{ b[1] }}</option>
         {% endfor %}
       </select>
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" required>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required>
+
       <button type="submit">Register</button>
     </form>
-    <div style="margin-top:10px"><a href="/login">Back to Login</a></div>
+    <a class="back-link" href="/login">← Back to Login</a>
   </div>
 </body>
 </html>

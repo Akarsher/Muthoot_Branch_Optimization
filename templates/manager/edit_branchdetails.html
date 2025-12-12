@@ -4,43 +4,33 @@
 	<meta charset="utf-8">
 	<title>Edit Branch Details</title>
 	<link rel="stylesheet" href="/static/css/style.css">
-	<style>
-		.container { max-width: 720px; margin: 24px auto; padding: 0 16px; }
-		.card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; background: #fff; }
-		label { display:block; margin: 8px 0 4px; }
-		input, textarea { width: 100%; padding: 8px; }
-		.btn { display:inline-block; padding: 8px 12px; border: 1px solid #28a745; background: #28a745; color: #fff; border-radius: 6px; text-decoration: none; }
-		.error { color:#dc3545; margin-bottom: 8px; }
-	</style>
 </head>
-<body>
-	<div class="container">
-		<h2>Edit Branch Details</h2>
-		<div style="margin-bottom:10px"><a href="/manager/profile">Back to Profile</a> • <a href="/manager">Dashboard</a> • <a href="/logout">Logout</a></div>
-		<div class="card">
+<body class="manager-page">
+	{% include '_manager_nav.html' %}
+	<div class="manager-form-wrap">
+		
+		<div class="manager-form-card">
 			{% if error %}<div class="error">{{ error }}</div>{% endif %}
 			{% if branch %}
-			<form method="post" action="/manager/branch/update">
+			<form method="post" action="/manager/branch/update" class="manager-form">
 				<label for="name">Branch Name</label>
 				<input id="name" name="name" value="{{ branch[1] }}" required>
 				<label for="address">Address</label>
 				<textarea id="address" name="address" rows="3">{{ branch[2] or '' }}</textarea>
-				<div style="display:flex; gap:16px;">
-					<div style="flex:1">
+				<div class="manager-form-grid">
+					<div class="field">
 						<label for="lat">Latitude</label>
 						<input id="lat" name="lat" value="{{ '%.6f'|format(branch[3]) }}" required>
 					</div>
-					<div style="flex:1">
+					<div class="field">
 						<label for="lng">Longitude</label>
 						<input id="lng" name="lng" value="{{ '%.6f'|format(branch[4]) }}" required>
 					</div>
 				</div>
-				<div style="margin-top:12px">
-					<button class="btn" type="submit">Save Changes</button>
-				</div>
+				<button class="btn-red" type="submit">Save Changes</button>
 			</form>
 			{% else %}
-				<p>Branch not found.</p>
+				<div class="manager-empty">Branch not found.</div>
 			{% endif %}
 		</div>
 	</div>

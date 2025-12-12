@@ -4,116 +4,114 @@
   <meta charset="utf-8">
   <title>Manager Registrations</title>
   <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    .wrap { max-width: 1000px; margin: 20px auto; }
-    .topbar { display:flex; justify-content: space-between; align-items:center; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { border:1px solid #ddd; padding:8px; font-size: 14px; }
-    th { background:#eee; text-align:left; }
-    .btn { padding:6px 10px; border-radius:6px; border:1px solid #007bff; background:#007bff; color:#fff; cursor:pointer; }
-    .btn.danger { border-color:#dc3545; background:#dc3545; }
-    .tabs { display:flex; gap:12px; margin: 12px 0; }
-    .tabs a { cursor:pointer; color:#007bff; }
-  </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <h2>Manager Registrations</h2>
-      <div>
-        <a href="/admin">Back to Dashboard</a> • <a href="/logout">Logout ({{ user.username }})</a>
-      </div>
+  {% include "_admin_nav.html" %}
+  <main class="admin-wrap manager-page">
+    <div class="wrap">
+     
+ 
+    <div class="manager-tabs">
+      <button id="tabPending" class="tab-btn active" onclick="loadPending()">Pending Approvals</button>
+      <button id="tabAll" class="tab-btn" onclick="loadAll()">All Managers</button>
     </div>
-
-    <div class="tabs">
-      <a onclick="loadPending()">Pending Approvals</a>
-      <a onclick="loadAll()">All Managers</a>
+ 
+     <h3 id="listTitle">Pending Approvals</h3>
+    <table class="manager-table">
+       <thead>
+         <tr>
+           <th>Name</th>
+           <th>Contact No</th>
+           <th>Branch</th>
+           <th>Address</th>
+           <th>Status</th>
+           <th>Actions</th>
+         </tr>
+       </thead>
+       <tbody id="rows"></tbody>
+     </table>
     </div>
+  </main>
+ 
+ <script>
+ async function loadPending() {
++  setActiveTab('pending');
+   document.getElementById('listTitle').textContent = 'Pending Approvals';
+   const tbody = document.getElementById('rows');
+   tbody.innerHTML='';
+   const res = await fetch('/api/admin/managers/pending');
+   const data = await res.json();
+   if (!data.success) { tbody.innerHTML = `<tr><td colspan=6>${data.error||'Failed'}</td></tr>`; return; }
+   if (data.items.length === 0) { tbody.innerHTML = '<tr><td colspan=6>No pending registrations.</td></tr>'; return; }
+   data.items.forEach(m => {
+     const tr = document.createElement('tr');
+     tr.innerHTML = `
+       <td>${m.name}</td>
+       <td>${m.contact_no}</td>
+       <td>${m.branch_name || m.branch_id}</td>
+       <td>${m.branch_address || ''}</td>
+       <td>${m.approved ? 'Approved' : 'Pending'}</td>
+       <td>
+         <button class="btn" onclick="approve(${m.id})">Accept</button>
+         <button class="btn danger" onclick="removeM(${m.id})">Remove</button>
+       </td>
+     `;
+     tbody.appendChild(tr);
+   })
+ }
 
-    <h3 id="listTitle">Pending Approvals</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Contact No</th>
-          <th>Branch</th>
-          <th>Address</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </div>
+ async function loadAll() {
++  setActiveTab('all');
+   document.getElementById('listTitle').textContent = 'All Managers';
+   const tbody = document.getElementById('rows');
+   tbody.innerHTML='';
+   const res = await fetch('/api/admin/managers');
+   const data = await res.json();
+   if (!data.success) { tbody.innerHTML = `<tr><td colspan=6>${data.error||'Failed'}</td></tr>`; return; }
+   if (data.items.length === 0) { tbody.innerHTML = '<tr><td colspan=6>No managers yet.</td></tr>'; return; }
+   data.items.forEach(m => {
+     const tr = document.createElement('tr');
+     tr.innerHTML = `
+       <td>${m.name}</td>
+       <td>${m.contact_no}</td>
+       <td>${m.branch_name || m.branch_id}</td>
+       <td>${m.branch_address || ''}</td>
+       <td>${m.approved ? 'Approved' : 'Pending'}</td>
+       <td>
+         ${m.approved ? '' : `<button class="btn" onclick="approve(${m.id})">Accept</button>`}
+         <button class="btn danger" onclick="removeM(${m.id})">Remove</button>
+       </td>
+     `;
+     tbody.appendChild(tr);
+   })
+ }
 
-<script>
-async function loadPending() {
-  document.getElementById('listTitle').textContent = 'Pending Approvals';
-  const tbody = document.getElementById('rows');
-  tbody.innerHTML='';
-  const res = await fetch('/api/admin/managers/pending');
-  const data = await res.json();
-  if (!data.success) { tbody.innerHTML = `<tr><td colspan=6>${data.error||'Failed'}</td></tr>`; return; }
-  if (data.items.length === 0) { tbody.innerHTML = '<tr><td colspan=6>No pending registrations.</td></tr>'; return; }
-  data.items.forEach(m => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${m.name}</td>
-      <td>${m.contact_no}</td>
-      <td>${m.branch_name || m.branch_id}</td>
-      <td>${m.branch_address || ''}</td>
-      <td>${m.approved ? 'Approved' : 'Pending'}</td>
-      <td>
-        <button class="btn" onclick="approve(${m.id})">Accept</button>
-        <button class="btn danger" onclick="removeM(${m.id})">Remove</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  })
+ async function approve(id) {
+   const res = await fetch(`/api/admin/managers/${id}/approve`, { method: 'POST' });
+   const data = await res.json();
+   if (!data.success) { alert(data.error||'Failed'); return; }
+   loadPending();
+ }
+
+ async function removeM(id) {
+   if (!confirm('Remove this manager registration?')) return;
+   const res = await fetch(`/api/admin/managers/${id}`, { method: 'DELETE' });
+   const data = await res.json();
+   if (!data.success) { alert(data.error||'Failed'); return; }
+   loadPending();
+ }
+
+function setActiveTab(which) {
+  const pending = document.getElementById('tabPending');
+ const all = document.getElementById('tabAll');
+  pending.classList.remove('active');
+  all.classList.remove('active');
+  if (which === 'pending') pending.classList.add('active');
+  if (which === 'all') all.classList.add('active');
 }
 
-async function loadAll() {
-  document.getElementById('listTitle').textContent = 'All Managers';
-  const tbody = document.getElementById('rows');
-  tbody.innerHTML='';
-  const res = await fetch('/api/admin/managers');
-  const data = await res.json();
-  if (!data.success) { tbody.innerHTML = `<tr><td colspan=6>${data.error||'Failed'}</td></tr>`; return; }
-  if (data.items.length === 0) { tbody.innerHTML = '<tr><td colspan=6>No managers yet.</td></tr>'; return; }
-  data.items.forEach(m => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${m.name}</td>
-      <td>${m.contact_no}</td>
-      <td>${m.branch_name || m.branch_id}</td>
-      <td>${m.branch_address || ''}</td>
-      <td>${m.approved ? 'Approved' : 'Pending'}</td>
-      <td>
-        ${m.approved ? '' : `<button class="btn" onclick="approve(${m.id})">Accept</button>`}
-        <button class="btn danger" onclick="removeM(${m.id})">Remove</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  })
-}
-
-async function approve(id) {
-  const res = await fetch(`/api/admin/managers/${id}/approve`, { method: 'POST' });
-  const data = await res.json();
-  if (!data.success) { alert(data.error||'Failed'); return; }
-  loadPending();
-}
-
-async function removeM(id) {
-  if (!confirm('Remove this manager registration?')) return;
-  const res = await fetch(`/api/admin/managers/${id}`, { method: 'DELETE' });
-  const data = await res.json();
-  if (!data.success) { alert(data.error||'Failed'); return; }
-  loadPending();
-}
-
-// default load pending
-loadPending();
-</script>
+ // default load pending
+ loadPending();
+ </script>
 </body>
 </html>

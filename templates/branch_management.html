@@ -36,46 +36,50 @@
             </div>
 
             <!-- Actions -->
-            <div class="actions">
+            <div class="add-branch-section">
+              <div class="add-branch-card">
                 <h3>Add New Branch</h3>
-                <div id="branchMessage"></div>
+                 <div id="branchMessage"></div>
                 <div class="action-grid">
-                    <div class="add-form">
-                        <label for="branchName">Branch Name *</label>
-                        <input type="text" id="branchName" placeholder="e.g. Downtown Branch">
-                        
-                        <label for="branchAddress">Address</label>
-                        <input type="text" id="branchAddress" placeholder="Optional address">
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <div>
-                                <label for="branchLat">Latitude *</label>
-                                <input type="number" id="branchLat" step="any" placeholder="e.g. 12.9716">
-                            </div>
-                            <div>
-                                <label for="branchLng">Longitude *</label>
-                                <input type="number" id="branchLng" step="any" placeholder="e.g. 77.5946">
-                            </div>
-                        </div>
-                        
-                        <label>
-                            <input type="checkbox" id="isHQ"> Mark as Headquarters
-                        </label>
-                        
-                        <button onclick="addBranch()">Add Branch</button>
+                  <div class="add-form">
+                    <label for="branchName">Branch Name *</label>
+                    <input type="text" id="branchName" placeholder="e.g. Downtown Branch">
+
+                    <label for="branchAddress">Address</label>
+                    <input type="text" id="branchAddress" placeholder="Optional address">
+
+                    <div class="form-row">
+                      <div>
+                        <label for="branchLat">Latitude *</label>
+                        <input type="number" id="branchLat" step="any" placeholder="e.g. 12.9716">
+                      </div>
+                      <div>
+                        <label for="branchLng">Longitude *</label>
+                        <input type="number" id="branchLng" step="any" placeholder="e.g. 77.5946">
+                      </div>
                     </div>
-                    
-                    <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
-                        <h4 style="margin-bottom: 10px;">💡 Tips</h4>
-                        <ul style="color: #666; font-size: 14px; line-height: 1.6;">
-                            <li>Use Google Maps to find accurate coordinates</li>
-                            <li>Only one branch can be marked as HQ</li>
-                            <li>Address is optional but recommended</li>
-                            <li>Coordinates should be in decimal format</li>
-                            <li>⚠️ Be careful when deleting branches - this action cannot be undone</li>
-                        </ul>
+
+                    <label class="checkbox-row">
+                      <input type="checkbox" id="isHQ"> Mark as Headquarters
+                    </label>
+
+                    <div class="add-branch-actions">
+                      <button onclick="addBranch()">Add Branch</button>
                     </div>
+                  </div>
+
+                  <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                    <h4 style="margin-bottom: 10px;">💡 Tips</h4>
+                    <ul style="color: #666; font-size: 14px; line-height: 1.6;">
+                      <li>Use Google Maps to find accurate coordinates</li>
+                      <li>Only one branch can be marked as HQ</li>
+                      <li>Address is optional but recommended</li>
+                      <li>Coordinates should be in decimal format</li>
+                      <li>⚠️ Be careful when deleting branches - this action cannot be undone</li>
+                    </ul>
+                  </div>
                 </div>
+              </div>
             </div>
 
             <!-- Branch Tabs and Table -->
@@ -319,4 +323,4 @@
         document.addEventListener('DOMContentLoaded', loadBranches);
     </script>
 </body>
-</html> 
+</html>
