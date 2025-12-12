@@ -4,46 +4,42 @@
   <meta charset="utf-8">
   <title>Branch Manager Dashboard</title>
   <link rel="stylesheet" href="/static/css/style.css">
-  <style>
-    .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; align-items: start; }
-    .card { grid-column: span 12; border: 1px solid #ddd; border-radius: 8px; padding: 16px; background: #fff; }
-    @media (min-width: 768px) {
-      .card.half { grid-column: span 6; }
-    }
-    .muted { color: #666; }
-    .btn { display:inline-block; padding: 8px 12px; border: 1px solid #007bff; background: #007bff; color: #fff; border-radius: 6px; text-decoration: none; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
-  </style>
 </head>
-<body>
-  <div class="container">
-    <h2>Welcome, {{ user.username }} (Branch Manager)</h2>
-    <div style="margin-bottom:10px">
-      <a href="/manager/profile">View Profile</a> • <a href="/manager/branch/edit">Edit Branch Details</a> • <a href="/logout">Logout</a>
+<body class="manager-page">
+  {% include '_manager_nav.html' %}
+  <div class="manager-dashboard-wrap">
+    <div class="manager-hero">
+      <h2>Welcome, {{ user.username }}</h2>
+      <div class="sub">Branch Manager Dashboard</div>
     </div>
 
-    <div class="grid">
-      <div class="card half">
-        <h3>Your Assigned Branch</h3>
+    <div class="manager-card-main">
+      <div class="manager-card-header">
+        <h3 class="manager-card-title">Your Assigned Branch</h3>
         {% if branch %}
-          <p><strong>{{ branch[1] }}</strong></p>
-          <p class="muted">{{ branch[2] or 'No address' }}</p>
-          <p>Coordinates: {{ '%.4f'|format(branch[3]) }}, {{ '%.4f'|format(branch[4]) }}</p>
-          <p>Status: {% if branch[5] == 1 %}<span style="color:#28a745">Visited</span>{% else %}<span style="color:#dc3545">Not Visited</span>{% endif %}</p>
-          <div style="margin-top:10px">
-            <form method="post" action="/manager/mark-visited">
-              <button class="btn" type="submit">Mark as Visited</button>
-            </form>
-          </div>
-          
-        {% else %}
-          <p>No branch assigned.</p>
+          {% if branch[5] == 1 %}
+            <span class="manager-status visited">Visited</span>
+          {% else %}
+            <span class="manager-status not-visited">Not Visited</span>
+          {% endif %}
         {% endif %}
       </div>
-      
+
+      {% if branch %}
+        <p class="manager-branch-name">{{ branch[1] }}</p>
+        <p class="manager-branch-address">{{ branch[2] or 'No address' }}</p>
+        <p class="manager-branch-coords">Coordinates: {{ '%.4f'|format(branch[3]) }}, {{ '%.4f'|format(branch[4]) }}</p>
+
+        <div class="manager-actions">
+          {% if branch[5] != 1 %}
+          <form method="post" action="/manager/mark-visited">
+            <button class="btn-red" type="submit">Mark as Visited</button>
+          </form>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="manager-empty">No branch assigned.</div>
+      {% endif %}
     </div>
   </div>
 </body>
-</html>

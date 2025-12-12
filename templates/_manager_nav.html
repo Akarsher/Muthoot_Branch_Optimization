@@ -1,0 +1,15 @@
+<nav class="admin-navbar manager-navbar">
+  <div class="admin-navbar-inner">
+    <div class="admin-brand">
+      <a href="/manager">
+        <img src="{{ url_for('static', filename='images/Logo2.png') }}" alt="Logo" class="admin-logo">
+      </a>
+    </div>
+    <div class="admin-nav-links">
+      <a href="/manager">Dashboard</a>
+      <a href="/manager/profile">View Profile</a>
+      <a href="/manager/branch/edit">Edit Branch Details</a>
+      <a href="/logout" class="admin-logout">Logout</a>
+    </div>
+  </div>
+</nav>
