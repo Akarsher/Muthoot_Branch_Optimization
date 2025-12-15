@@ -32,13 +32,15 @@ class LocationTracker {
                 </div>
                 
                 <div class="location-test" style="margin: 10px 0;">
-                    <button id="test-location-btn" class="btn" style="background: #17a2b8; color: white; padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;" onclick="locationTracker.testCurrentLocation()">
-                        📍 Test Current Location
-                    </button>
-                    <button id="use-network-btn" class="btn" style="background: #6c757d; color: white; padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; margin-left: 5px;" onclick="locationTracker.testNetworkLocation()">
-                        📶 Use Network Location
-                    </button>
-                    <div id="test-result" style="margin-top: 5px; font-size: 12px; color: #666;"></div>
+                    <div class="test-buttons" style="display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap;">
+                        <button id="test-location-btn" class="btn" style="background: #17a2b8; color: white; padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;" onclick="locationTracker.testCurrentLocation()">
+                            📍 Test Current Location
+                        </button>
+                        <button id="start-tracking-btn" class="btn btn-success" onclick="locationTracker.startTracking()" style="background: #28a745; color: white; padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">
+                            🚀 Start Live Tracking
+                        </button>
+                    </div>
+                    <div id="test-result" style="margin-top: 8px; font-size: 12px; color: #666;"></div>
                 </div>
                 
                 <div class="tracking-info" id="tracking-info" style="display: none; background: white; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px; margin: 12px 0;">
@@ -46,17 +48,15 @@ class LocationTracker {
                     <div class="tracking-stats" id="tracking-stats"></div>
                 </div>
                 
-                <div class="tracking-controls">
-                    <button id="start-tracking-btn" class="btn btn-success" onclick="locationTracker.startTracking()" style="background: #28a745; color: white; margin-right: 8px; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
-                        🚀 Start Live Tracking
-                    </button>
+                <div class="tracking-controls" style="display:none;">
+                    <!-- kept for compatibility; start button moved next to test button -->
                     <button id="stop-tracking-btn" class="btn btn-danger" onclick="locationTracker.stopTracking()" style="display: none; background: #dc3545; color: white; margin-right: 8px; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
                         ⏹️ Stop Tracking
                     </button>
                 </div>
                 
                 <div class="tracking-help" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e9ecef; color: #666; font-size: 12px;">
-                    <small>📱 Try "Test Current Location" first. If it times out, use "Use Network Location" for approximate location. For GPS accuracy, ensure location services are enabled and you're near a window or outdoors.</small>
+                    <small>📱 Use "Test Current Location" to verify accuracy before starting live tracking.</small>
                 </div>
             </div>
         `;
@@ -113,29 +113,6 @@ class LocationTracker {
             
         } finally {
             testBtn.textContent = '📍 Test Current Location';
-            testBtn.disabled = false;
-        }
-    }
-    
-    async testNetworkLocation() {
-        const testBtn = document.getElementById('use-network-btn');
-        const testResult = document.getElementById('test-result');
-        
-        testBtn.textContent = 'Getting network location...';
-        testBtn.disabled = true;
-        testResult.innerHTML = '<em style="color: #17a2b8;">📶 Using network-based location (faster but less accurate)...</em>';
-        
-        try {
-            // Use network-based location (faster, less accurate)
-            const position = await this.getCurrentLocationNetwork();
-            this.displayLocationResult(position, 'Network');
-            
-        } catch (error) {
-            console.error('❌ Network location failed:', error);
-            this.displayLocationError(error, 'Network location also failed.');
-            
-        } finally {
-            testBtn.textContent = '📶 Use Network Location';
             testBtn.disabled = false;
         }
     }
